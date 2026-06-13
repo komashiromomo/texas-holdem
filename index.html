@@ -398,6 +398,67 @@
     .betchip,.seat .winbadge,.seat.turn .who,.seat.allin .who,.seat.winner .who{
       animation:none !important; transition:none !important;}
   }
+
+  /* ================== 個人化教學層 ================== */
+  /* 出手前教練卡 */
+  #coachBox{max-width:760px; margin:0 auto 8px; background:linear-gradient(180deg,rgba(20,30,52,.92),rgba(12,20,36,.92));
+    border:1px solid rgba(232,196,106,.45); border-radius:12px; padding:10px 13px; animation:betFade .2s ease both;}
+  #coachBox .cb-top{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  #coachBox .cb-eq{font-size:25px; font-weight:800; color:var(--gold); line-height:1;}
+  #coachBox .cb-made{font-size:13px; color:var(--txt); font-weight:700;}
+  #coachBox .cb-draw{font-size:12px; color:var(--muted);}
+  #coachBox .cb-draw b{color:#7CE0A3;}
+  #coachBox .cb-odds{display:flex; gap:14px; margin:8px 0; font-size:12.5px; flex-wrap:wrap;}
+  #coachBox .cb-odds .od{background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.08); border-radius:9px; padding:5px 10px;}
+  #coachBox .cb-odds .od .k{color:var(--muted); font-size:11px; margin-right:5px;}
+  #coachBox .cb-odds .od .v{font-weight:800;}
+  #coachBox .cb-odds .od.ok .v{color:#7CE0A3;}
+  #coachBox .cb-odds .od.no .v{color:#ff9aa6;}
+  #coachBox .cb-line{font-size:13px; color:var(--txt); line-height:1.55;}
+  #coachBox .cb-rec{font-weight:800;}
+  #coachBox .cb-rec.raise{color:var(--gold);} #coachBox .cb-rec.call{color:#aec2ff;}
+  #coachBox .cb-rec.check{color:#eaf2ff;} #coachBox .cb-rec.fold{color:#ff9aa6;}
+  #coachBox .cb-why{color:var(--muted);}
+  @media(max-width:640px){ #coachBox .cb-eq{font-size:21px;} #coachBox .cb-line,#coachBox .cb-made{font-size:12px;} }
+
+  /* 教學開關膠囊 */
+  #coachBtn.on{background:linear-gradient(180deg,#f4d98a,#d8b251); color:#0b1020;
+    box-shadow:0 2px 0 #9c7a2e,0 4px 10px rgba(0,0,0,.3); border-color:transparent;}
+
+  /* 出手後對答 toast */
+  #coachToast{position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%); max-width:min(420px,86vw);
+    padding:9px 14px; border-radius:12px; font-size:13px; line-height:1.5; background:rgba(8,14,28,.95);
+    border:1.5px solid var(--gold); color:var(--txt); box-shadow:0 10px 30px rgba(0,0,0,.5); z-index:35;
+    pointer-events:none; animation:fxPop .16s cubic-bezier(.2,1.6,.4,1) both, toastOut .4s ease 1.2s forwards;}
+  #coachToast.good{border-color:rgba(124,224,163,.7);} #coachToast.good b{color:#7CE0A3;}
+  #coachToast.ok{border-color:rgba(232,196,106,.7);} #coachToast.ok b{color:var(--gold);}
+  #coachToast.bad{border-color:rgba(226,59,78,.6);} #coachToast.bad b{color:#ff9aa6;}
+  @keyframes toastOut{to{opacity:0; transform:translateX(-50%) translateY(8px);}}
+
+  /* 賽後本手回顧升級 */
+  #banner .rv{align-items:flex-start; flex-direction:column; gap:3px; padding:7px 0; border-top:1px solid rgba(255,255,255,.06);}
+  #banner .rv:first-of-type{border-top:none;}
+  #banner .rvhead{display:flex; align-items:center; gap:7px; width:100%;}
+  #banner .rvnums{font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.3px;}
+  #banner .rvnums b{color:var(--gold);} #banner .rvnums i{font-style:normal; color:#aec2ff;}
+  #banner .rvwhy{font-size:12px; color:var(--txt); line-height:1.5; opacity:.92;}
+  #banner .rvrec{font-size:11px; color:var(--muted); margin-left:auto; white-space:nowrap;}
+  #banner .rvrec b{color:#ffd84d;}
+  #banner .takeaway{margin-top:12px; text-align:left; background:rgba(232,196,106,.10); border:1px solid rgba(232,196,106,.42);
+    border-radius:12px; padding:10px 13px; font-size:13px; line-height:1.6; color:var(--txt);}
+  #banner .takeaway .tk{display:block; font-size:11px; font-weight:800; color:var(--gold); letter-spacing:1px; margin-bottom:4px;}
+  #banner .youline{font-weight:800; color:var(--gold); margin:6px 0;}
+
+  /* 戰績面板：你的主要漏洞 + 進步亮點 */
+  .leakcard{background:rgba(226,59,78,.08); border:1px solid rgba(226,59,78,.28); border-radius:11px; padding:9px 11px; margin:6px 0;}
+  .leaktop{display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;}
+  .leakname{font-size:14px; font-weight:800; color:#ff9aa6;}
+  .leakcnt{font-size:11px; color:var(--muted); white-space:nowrap;}
+  .leakfix{font-size:12px; color:var(--txt); line-height:1.6;}
+  .goodtag{font-size:12.5px; color:#7CE0A3; background:rgba(124,224,163,.1); border:1px solid rgba(124,224,163,.3);
+    border-radius:10px; padding:8px 11px; margin-top:10px; line-height:1.6;}
+  .goodtag b{color:#aef0c6;}
+  @media(prefers-reduced-motion:reduce){ #coachBox,#coachToast{animation:none;} }
 </style>
 </head>
 <body>
@@ -411,6 +472,7 @@
       <span class="sp">準度 <b id="pillAcc">—</b></span>
       <span class="sp">贏率 <b id="pillBB" class="pos">+0.0</b><i id="pillBBunit">bb/100</i></span>
     </div>
+    <button class="btn ghost" id="coachBtn">🎓 教練</button>
     <button class="btn ghost" id="statsBtn">戰績</button>
     <button class="btn ghost" id="rulesBtn">規則</button>
     <button class="btn ghost" id="newGameBtn">新遊戲</button>
@@ -434,6 +496,7 @@
   <div id="actionBar">
     <div id="waitMsg">輪到對手行動<span class="dot">…</span></div>
     <div id="controls">
+      <div id="coachBox" style="display:none"></div>
       <div class="raiserow">
         <input type="range" id="betSlider">
         <div class="amt" id="betAmt">0</div>
@@ -571,7 +634,11 @@ const logs=[];
 
 /* 玩家數據（每場新遊戲重置） */
 let stats=null, handReview=[], handFlags={vpip:false,pfr:false}, handStartChips=0;
-function resetStats(){ stats={hands:0,vpip:0,pfr:0,bb:0,decisions:0,scoreSum:0,curve:[]}; }
+let coachOn=true, lastHumanEq=null;   // 教學模式開關 + 勝率快取（每回合只算一次）
+try{ coachOn = localStorage.getItem('pkCoach')!=='0'; }catch(e){}
+function resetStats(){ stats={hands:0,vpip:0,pfr:0,bb:0,decisions:0,scoreSum:0,curve:[],
+  leaks:{chase:{c:0,cost:0},overfold:{c:0,cost:0},missValue:{c:0,cost:0},foldGood:{c:0,cost:0},spew:{c:0,cost:0}},
+  strengths:{good:0}}; }
 
 const el = id => document.getElementById(id);
 function totalPot(){ return players.reduce((s,p)=>s+p.committed,0); }
@@ -626,7 +693,7 @@ function mkPlayer(name, isHuman){
 
 function startNewHand(){
   revealAll=false; busy=false; hideBanner();
-  clearFxLayer(); lastPotShown=0; prevBoardCount=0;
+  clearFxLayer(); clearCoachFx(); lastPotShown=0; prevBoardCount=0;
   players.forEach(p=>{ if(p.chips<=0) p.sittingOut=true; });
   const alive = alivePlayers();
   if(alive.length<=1){ return gameOver(alive[0]); }
@@ -770,6 +837,10 @@ function showdown(){
     resultLines.push(`${label} <b>${pot.amount}</b> → ${winners.map(w=>w.name).join('、')}（${handName(best)}）`);
   });
   contenders.forEach(p=> log(`${tag(p)} 亮牌：<span class="hl">${handName(p.score)}</span>`));
+  const _me=players[0];
+  if(_me.score&&!_me.folded&&!_me.sittingOut){ const hn=handName(_me.score);
+    resultLines.unshift(`<span class="youline">${(_me.isWinner&&_me.winAmt>0)?`你湊出「${hn}」——就是被<b>描金</b>的那 5 張，這把收下底池。`:`你的牌型是「${hn}」，由<b>描金</b>那 5 張組成；這次對手更大，下手再來。`}</span>`);
+  }
   players.forEach(p=>{ p.committed=0; p.streetBet=0; });
   stage='done';
   render();
@@ -849,12 +920,13 @@ function botDecide(p){
 function recordHuman(p, kind){    // kind: fold / check / call / raise
   if(!stats) return;
   const oppLive = players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
-  const eq = estimateEquity(p.hole, community, Math.min(oppLive,4), 220);
+  let eq; if(lastHumanEq && lastHumanEq.stage===stage && lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
+    else { eq=estimateEquity(p.hole, community, Math.min(oppLive,4), 220); lastHumanEq={eq,oppLive,stage}; }
   const toCall = betToMatch - p.streetBet;
   const pot = totalPot();
   const potOdds = toCall>0 ? toCall/(pot+toCall) : 0;
   const canRaise = (p.streetBet+p.chips) > betToMatch;
-  const rec = baselineDecision(eq, potOdds, toCall, pot, canRaise, oppLive).action;
+  const best = baselineDecision(eq, potOdds, toCall, pot, canRaise, oppLive); const rec = best.action;
   if(stage==='preflop'){
     if(kind==='call'||kind==='raise') handFlags.vpip=true;
     if(kind==='raise') handFlags.pfr=true;
@@ -864,13 +936,29 @@ function recordHuman(p, kind){    // kind: fold / check / call / raise
     if(rec==='fold'){ score=Math.max(18,100-Math.round(Math.max(0,potOdds-eq)*240)); tip='勝率追不上賠率，長期會虧'; }
     else if(rec==='raise'){ if(kind==='fold'){score=16; tip='蓋掉了很可能是場上最大的牌';} else {score=72; tip='牌很強，下注／加注能多賺';} }
     else if(rec==='call'){ if(kind==='fold'){score=56; tip='有賠率，這裡收手略可惜';} else {score=82; tip='牌力中等，加注偏冒險';} }
-    else if(rec==='check'){ if(kind==='raise'){score=66; tip='牌力普通，這是偷雞，偶一為之';} }
+    else if(rec==='check'){ if(kind==='raise'){score=66; tip='牌力普通，這是偷雞，偶一為之';} else if(kind==='fold'){score=14; tip='可以免費過牌看下一張，沒理由白白蓋牌';} }
   }
+  // 個人漏洞歸類（重用已算好的 rec/kind/toCall/pot，不另算牌力）
+  if(stats.leaks){
+    if(score>=90){ stats.strengths.good++; }
+    else if(rec==='fold'&&(kind==='call'||kind==='raise')){ stats.leaks.chase.c++; stats.leaks.chase.cost+=Math.max(0,toCall); }
+    else if(rec==='raise'&&kind==='fold'){ stats.leaks.overfold.c++; stats.leaks.overfold.cost+=Math.round(pot*0.5); }
+    else if(rec==='raise'&&kind==='call'){ stats.leaks.missValue.c++; stats.leaks.missValue.cost+=Math.round(pot*0.3); }
+    else if(rec==='call'&&kind==='fold'){ stats.leaks.foldGood.c++; stats.leaks.foldGood.cost+=Math.round(pot*0.25); }
+    else if(rec==='check'&&kind==='raise'){ stats.leaks.spew.c++; stats.leaks.spew.cost+=Math.max(toCall,bigBlind*2); }
+    else if(rec==='check'&&kind==='fold'){ stats.leaks.foldGood.c++; stats.leaks.foldGood.cost+=Math.round(pot*0.2); }
+  }
+  const eqPct=Math.round(eq*100), oddsPct=Math.round(Math.max(0,potOdds)*100);
+  const actName={fold:'蓋牌',check:'過牌',call:'跟注',raise:'下注'}[kind];
   handReview.push({
     stageName:{preflop:'翻前',flop:'翻牌',turn:'轉牌',river:'河牌'}[stage]||'',
-    actName:{fold:'蓋牌',check:'過牌',call:'跟注',raise:'下注'}[kind], score, tip
+    actName, score, tip,
+    eqPct, oddsPct, toCall, recAction:rec, recSize:best.sizeFrac,
+    recLabel:{fold:'蓋牌',check:'過牌',call:'跟注',raise:'加注／下注'}[rec],
+    why: whyLine(kind,rec,eqPct,oddsPct,best.sizeFrac,actName,tip,score)
   });
   stats.decisions++; stats.scoreSum+=score;
+  coachToast(score,tip);
 }
 function finalizeHandStats(){
   if(!stats || players[0].sittingOut) return null;
@@ -880,7 +968,8 @@ function finalizeHandStats(){
   if(handFlags.pfr) stats.pfr++;
   stats.curve.push(+stats.bb.toFixed(2));
   updateStatsPill();
-  return { delta, review:handReview.slice() };
+  const me=players[0];
+  return { delta, review:handReview.slice(), madeHand:(revealAll&&me.score&&!me.folded)?handName(me.score):null };
 }
 function winRateDisplay(){    // 樣本太少先看累積淨賺，夠多才看 bb/100
   if(stats.hands < 20) return { val:(stats.bb>=0?'+':'')+stats.bb.toFixed(0), unit:'bb 淨賺', label:'淨賺（bb）', raw:stats.bb };
@@ -930,6 +1019,7 @@ function openStatsModal(){
     ${stats.hands<20?'<div class="srow" style="color:var(--muted);font-size:12px">※ 滿 20 手後會改顯示 bb/100 贏率</div>':''}
     <div class="srow"><b>風格</b>　VPIP ${vp}%　·　PFR ${pf}%</div>
     <div class="stag">${styleLabel(vp,pf,stats.hands)}</div>
+    ${leakReport()}
     <div class="srow" style="margin-top:14px"><b>累積輸贏（大盲）</b></div>
     ${sparkline(stats.curve)}
     <div class="snote">
@@ -938,6 +1028,85 @@ function openStatsModal(){
       · <b>bb/100</b>：每 100 手平均贏幾個大盲——要打幾百手才準。
     </div>`;
   el('statsModal').style.display='flex';
+}
+
+/* ========================================================================
+   個人化教學：即時教練卡 + 賽後白話解說 + 個人漏洞分析（全唯讀，不碰牌局）
+   ======================================================================== */
+function countOuts(hole,community){   // 還差幾張能讓牌型升級（教學用近似）
+  if(community.length<3||community.length>=5) return {outs:0,draws:[]};
+  const known=[...hole,...community], base=evaluate7(known);
+  const rem=freshDeck().filter(c=>!known.some(k=>sameCard(k,c)));
+  let outs=0; for(const c of rem){ if(evaluate7([...hole,...community,c])[0]>base[0]) outs++; }
+  const sc={}; [...hole,...community].forEach(c=>sc[c.suit]=(sc[c.suit]||0)+1);
+  const rk=[...new Set([...hole,...community].map(c=>c.rank))].sort((a,b)=>a-b);
+  const draws=[]; if(Object.values(sc).some(n=>n===4)) draws.push('同花');
+  for(let i=0;i+3<rk.length;i++){ if(rk[i+3]-rk[i]<=4){ draws.push('順子'); break; } }
+  return {outs,draws:[...new Set(draws)]};
+}
+function sizeWord(f){ return !f?'':(f>=0.9?'約一個底池':f>=0.65?'約七成底池':'約半個底池'); }
+function whyLine(kind,rec,eqPct,oddsPct,recSize,actName,tip,score){
+  if(score>=90) return `打得好。你的勝率 ${eqPct}%，這個${actName}沒問題、長期不吃虧。`;
+  if(rec==='fold') return `你只有 ${eqPct}% 會贏，但要跟這注等於得有 ${oddsPct}% 勝率才划算——勝率追不上門票價，長期會虧，這把該收手。`;
+  if(rec==='raise') return kind==='fold'?`你手上 ${eqPct}% 勝率是這桌最強的一掛，最佳是再加注（${sizeWord(recSize)}）多賺，結果你蓋掉了——等於把到手的錢推回去。`:`牌夠強（${eqPct}%），光跟太客氣；最佳是加注 ${sizeWord(recSize)}，趁對手還願意付錢時多收一點。`;
+  if(rec==='call') return `你有 ${eqPct}% 勝率、只要 ${oddsPct}% 就划算，門票很便宜，這裡收手有點可惜。`;
+  if(rec==='check') return kind==='fold' ? `可以免費過牌看下一張牌，這裡蓋牌等於白白放棄，沒必要。` : `牌力普通（${eqPct}%），這一注比較像偷雞——偶爾可以，但別每手都來。`;
+  return tip;
+}
+function coachAdvice(dec,eqPct,toCall,pot,draw){
+  const tag={raise:'加注',call:'跟注',check:'過牌',fold:'蓋牌'}[dec.action];
+  const rec=`<span class="cb-rec ${dec.action}">建議：${tag}</span>`; let why='';
+  if(dec.action==='raise') why= toCall>0?`你這手夠強（贏面約 ${eqPct}%），與其只是跟，不如反加注，趁對手還在多撈一點。`:`沒人下注又輪到你，這手不弱（約 ${eqPct}%）——主動下注，逼對手付錢才看得到下一張牌。`;
+  else if(dec.action==='call') why=`池底現在有 ${pot}，你只要再丟 ${toCall} 就能繼續搶——等於花 ${toCall} 搶 ${pot}。你的勝率 ${eqPct}% 追得上這個價，跟下去長期划算。`+(draw.outs>0?`（你還在聽牌，補到就更大。）`:'');
+  else if(dec.action==='check') why=`不用花錢就能免費看下一張公共牌，先過牌、把這手看下去，沒必要現在就投錢。`;
+  else why= toCall>0?`要再丟 ${toCall} 才能搶池底 ${pot}，但你的勝率只有 ${eqPct}%，追不上這個價——硬跟長期是賠錢，這手收手最省。`:`這手太弱（約 ${eqPct}%），不值得再投錢。`;
+  return `${rec}　<span class="cb-why">${why}</span>`;
+}
+function renderCoach(){
+  const box=el('coachBox'); if(!box) return;
+  if(!coachOn){ box.style.display='none'; box.innerHTML=''; return; }
+  const p=players[0];
+  const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
+  let eq; if(lastHumanEq&&lastHumanEq.stage===stage&&lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
+  else { eq=estimateEquity(p.hole,community,Math.min(oppLive,4),220); lastHumanEq={eq,oppLive,stage}; }
+  const toCall=betToMatch-p.streetBet, pot=totalPot();
+  const potOdds=toCall>0?toCall/(pot+toCall):0;
+  const canRaise=(p.streetBet+p.chips)>betToMatch;
+  const dec=baselineDecision(eq,potOdds,toCall,pot,canRaise,oppLive);
+  const made=community.length?handName(evaluate7([...p.hole,...community])):'';
+  const draw=countOuts(p.hole,community), eqPct=Math.round(eq*100);
+  let top=`<span class="cb-eq">${eqPct}%</span><span class="cb-made">${made?'目前：'+made:'翻牌前·只有底牌'}</span>`;
+  if(draw.outs>0&&draw.draws.length) top+=`<span class="cb-draw">還在聽 <b>${draw.draws.join('、')}</b>，牌堆裡有 <b>${draw.outs}</b> 張能讓你升級</span>`;
+  let odds=''; if(toCall>0){ const oddPct=Math.round(potOdds*100), ok=eq>=potOdds+0.02;
+    odds=`<div class="cb-odds"><span class="od"><span class="k">你的勝率</span><span class="v">${eqPct}%</span></span><span class="od ${ok?'ok':'no'}"><span class="k">划算門檻</span><span class="v">${oddPct}%</span></span></div>`; }
+  box.style.display='block';
+  box.innerHTML=`<div class="cb-top">${top}</div>${odds}<div class="cb-line">${coachAdvice(dec,eqPct,toCall,pot,draw)}</div>`;
+}
+function coachToast(score,tip){
+  if(!coachOn) return; const bar=el('actionBar'); if(!bar) return;
+  bar.querySelectorAll('#coachToast').forEach(n=>n.remove()); bar.style.position='relative';
+  const t=document.createElement('div'); t.id='coachToast'; let cls,msg;
+  if(score>=90){cls='good'; msg='<b>✓ 好球！</b>教練也會這樣打。';}
+  else if(score>=55){cls='ok'; msg=`<b>△ 可以更好</b> — ${tip}。`;}
+  else {cls='bad'; msg=`<b>✗ 這手要留意</b> — ${tip}。看懂為什麼比輸贏重要。`;}
+  t.className=cls; t.innerHTML=msg; bar.appendChild(t); setTimeout(()=>t.remove(),1750);
+}
+function clearCoachFx(){ const cb=el('coachBox'); if(cb){cb.style.display='none'; cb.innerHTML='';}
+  document.querySelectorAll('#coachToast').forEach(n=>n.remove()); lastHumanEq=null; }
+function syncCoachBtn(){ const b=el('coachBtn'); if(!b) return;
+  b.classList.toggle('on',coachOn); b.textContent=coachOn?'🎓 教練 ON':'🎓 教練 OFF'; }
+function leakReport(){
+  if(!stats||!stats.leaks) return '';
+  const NAME={chase:'付錢追牌',overfold:'太早蓋好牌',missValue:'好牌只敢跟',foldGood:'有賠率卻收手',spew:'亂偷雞'};
+  const FIX={chase:'要跟之前先問：這把追下去的勝算，付得起這個價嗎？追不上就放生。',overfold:'別一被加注就怕。你的牌常是場上最大的，強牌要敢跟敢加才賺得到。',missValue:'拿到大牌別只會跟，對方願意付錢時你要主動加注，多榨一點。',foldGood:'這種便宜的跟注該留下來看牌，太早蓋會錯過逆轉。',spew:'牌不夠強時別亂下注嚇人，對手不一定會怕，反而白送籌碼。'};
+  const arr=Object.entries(stats.leaks).filter(([k,v])=>v.c>=3).sort((a,b)=>b[1].cost-a[1].cost).slice(0,2);
+  let html='<div class="srow" style="margin-top:14px"><b>🩹 你的主要漏洞</b></div>';
+  if(arr.length){ arr.forEach(([k,v])=>{ html+=`<div class="leakcard"><div class="leaktop"><span class="leakname">${NAME[k]}</span><span class="leakcnt">${v.c} 次 · 約丟 ${v.cost} 籌碼</span></div><div class="leakfix">${FIX[k]}</div></div>`; }); }
+  else if(stats.decisions>=6){ html+='<div class="snote">目前沒有反覆出現的壞習慣，繼續保持！</div>'; }
+  else { html+='<div class="snote">再多打幾手，才抓得出你的習慣 🙂</div>'; }
+  if(stats.strengths&&stats.strengths.good>=3){ const pct=Math.round(stats.strengths.good/(stats.decisions||1)*100);
+    html+=`<div class="goodtag">💪 進步亮點：你有 <b>${stats.strengths.good}</b> 個決策完全打對（${pct}%），牌感正在養成。</div>`; }
+  return html;
 }
 
 /* ========================================================================
@@ -1160,11 +1329,12 @@ function setActionBar(){
   el('controls').style.display = myTurn?'flex':'none';
   if(stage==='done'){ el('waitMsg').innerHTML=''; }
   else if(!myTurn){ el('waitMsg').innerHTML='輪到對手行動<span class="dot">…</span>'; }
-  if(!myTurn) return;
+  if(!myTurn){ const cb=el('coachBox'); if(cb){cb.style.display='none'; cb.innerHTML='';} return; }
 
   const p=human;
   const toCall=betToMatch-p.streetBet;
   el('ccBtn').textContent = toCall<=0 ? '過牌' : (toCall>=p.chips?`跟注 ${p.chips} (All-in)`:`跟注 ${toCall}`);
+  el('foldBtn').style.display = toCall>0 ? '' : 'none';   // 免費過牌時不顯示蓋牌（蓋牌＝白丟一手）
 
   const allInTo=p.streetBet+p.chips;
   let minTo = betToMatch===0 ? Math.min(allInTo,bigBlind) : Math.min(allInTo, betToMatch+lastRaiseSize);
@@ -1188,6 +1358,7 @@ function setActionBar(){
     const ai=document.createElement('button'); ai.className='btn'; ai.textContent='All-in '+allInTo;
     ai.onclick=()=>{ sl.value=allInTo; el('betAmt').textContent=allInTo; }; qb.appendChild(ai);
   }
+  renderCoach();
 }
 
 /* ---------- 結果橫幅 ---------- */
@@ -1198,11 +1369,24 @@ function showBanner(title, lines, fin){
     const net=fin.delta;
     reviewHTML=`<div class="netres ${net>=0?'pos':'neg'}">本手結果 ${net>=0?'+':''}${net}</div>`;
     if(fin.review.length){
-      reviewHTML+=`<div class="reviewbox"><div class="rvtitle">📋 本手回顧（你的決策）</div>`+
-        fin.review.map(r=>`<div class="rv ${r.score>=90?'good':r.score>=55?'ok':'bad'}">
-          <span class="rvg">${r.score>=90?'✓':r.score>=55?'△':'✗'}</span>
-          <span class="rvs">${r.stageName}·${r.actName}</span>
-          <span class="rvt">${r.tip}</span></div>`).join('')+`</div>`;
+      reviewHTML+=`<div class="reviewbox"><div class="rvtitle">📋 本手回顧（你的每個決定，為什麼）</div>`+
+        fin.review.map(r=>{
+          const g=r.score>=90?'good':r.score>=55?'ok':'bad', ic=r.score>=90?'✓':r.score>=55?'△':'✗';
+          const nums=r.toCall>0?`<span class="rvnums">勝率 <b>${r.eqPct}%</b> vs 門票 <i>${r.oddsPct}%</i></span>`:`<span class="rvnums">你的勝率 <b>${r.eqPct}%</b></span>`;
+          const map={蓋牌:'fold',過牌:'check',跟注:'call',下注:'raise'};
+          const recTag=(r.score<90 && r.recAction&&r.recAction!==map[r.actName])?`<span class="rvrec">該：<b>${r.recLabel}</b></span>`:'';
+          return `<div class="rv ${g}"><div class="rvhead"><span class="rvg">${ic}</span><span class="rvs">${r.stageName}·${r.actName}</span>${nums}${recTag}</div><div class="rvwhy">${r.why||r.tip}</div></div>`;
+        }).join('')+`</div>`;
+      // 本手教學重點：抓分數最低那筆收斂成一條可記住的原則
+      let pivot=null; fin.review.forEach(r=>{ if(r.score<90&&(!pivot||r.score<pivot.score)) pivot=r; });
+      let msg;
+      if(pivot){
+        if(pivot.recAction==='fold') msg=`門票比勝率貴就丟——這手「${pivot.stageName}」你只有 ${pivot.eqPct}% 卻要付 ${pivot.oddsPct}% 門票。記住：勝率追不上要付的比例時，蓋牌是省錢，不丟臉。`;
+        else if(pivot.recAction==='raise') msg=`最強的牌要敢收錢——這手你有 ${pivot.eqPct}% 勝率卻沒加好，下次手上是全場最大時，加注比保守多賺一截。`;
+        else if(pivot.recAction==='call') msg=`便宜的門票別輕易丟——這手只要 ${pivot.oddsPct}% 就划算、你有 ${pivot.eqPct}%，這種價格通常值得跟下去。`;
+        else msg=`牌力普通就別硬攻——${pivot.stageName} 那手偷雞偶一為之就好，不必每手都來。`;
+      } else { msg=fin.delta>=0?(fin.madeHand?`這手每個決定都對，漂亮。你最後的牌型是「${fin.madeHand}」，就是牌桌上描金的那 5 張——靠的是打法，不是運氣。`:'這手每個決定都對，漂亮——照這樣打就是贏家打法。'):'別因為輸就懷疑——這手你打得對，只是對手後面補到牌。長期照這樣打，運氣會還你。'; }
+      reviewHTML+=`<div class="takeaway"><span class="tk">💡 本手教學重點</span>${msg}</div>`;
     }
   }
   b.innerHTML=`<h3>${title}</h3>${lines.map(l=>`<div class="line">${l}</div>`).join('')}${reviewHTML}
@@ -1245,6 +1429,11 @@ el('startBtn').onclick=()=>{
 };
 el('newGameBtn').onclick=()=>el('setup').style.display='flex';
 el('statsBtn').onclick=openStatsModal;
+el('coachBtn') && (el('coachBtn').onclick=()=>{
+  coachOn=!coachOn; try{ localStorage.setItem('pkCoach', coachOn?'1':'0'); }catch(e){}
+  syncCoachBtn(); setActionBar();   // 立即生效：關掉馬上收、打開馬上算
+});
+syncCoachBtn();
 el('statPill').onclick=openStatsModal;
 el('statsClose').onclick=()=>el('statsModal').style.display='none';
 el('statsCloseBtn').onclick=()=>el('statsModal').style.display='none';
