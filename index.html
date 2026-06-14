@@ -446,7 +446,12 @@
   #coachBox .cb-rec.raise{color:var(--gold);} #coachBox .cb-rec.call{color:#aec2ff;}
   #coachBox .cb-rec.check{color:#eaf2ff;} #coachBox .cb-rec.fold{color:#ff9aa6;}
   #coachBox .cb-why{color:var(--muted);}
-  @media(max-width:640px){ #coachBox .cb-eq{font-size:20px;} #coachBox .cb-line,#coachBox .cb-made{font-size:12.5px;} #coachBox .cb-odds{display:none;} }
+  /* 剝削提示:掛在 GTO 頻率條下方,藍色系與金色 GTO 區隔,上方細虛線分層 */
+  #coachBox .cb-exploit{font-size:12.5px; color:#aec2ff; line-height:1.55; margin-top:7px;
+    padding-top:7px; border-top:1px dashed rgba(174,194,255,.28);}
+  #coachBox .cb-draw .cb-hit{font-style:normal; color:#7CE0A3; font-weight:700;}   /* 2/4 命中率小字(綠) */
+  #banner .rvvillain{font-size:11px; color:#aec2ff; line-height:1.5; margin-top:2px; opacity:.92;}
+  @media(max-width:640px){ #coachBox .cb-eq{font-size:20px;} #coachBox .cb-line,#coachBox .cb-made{font-size:12.5px;} #coachBox .cb-odds{display:none;} #coachBox .cb-exploit{font-size:11.5px; margin-top:5px; padding-top:5px;} }
 
   /* 教學開關膠囊 */
   #coachBtn.on{background:linear-gradient(180deg,#f4d98a,#d8b251); color:#0b1020;
@@ -1193,7 +1198,8 @@ function recordHuman(p, kind){    // kind: fold / check / call / raise
     eqPct, oddsPct, toCall, recAction:mix.primary, recSize:best.sizeFrac,
     recLabel:{fold:'蓋牌',check:'過牌',call:'跟注',raise:'加注／下注'}[mix.primary],
     why: whyLine(kind,mix.primary,eqPct,oddsPct,best.sizeFrac,actName,tip,score),
-    mixFreq: FREQ, mixPrimary: {fold:'蓋牌',check:'過牌',call:'跟注',raise:'加注'}[mix.primary]
+    mixFreq: FREQ, mixPrimary: {fold:'蓋牌',check:'過牌',call:'跟注',raise:'加注'}[mix.primary],
+    villainPersona: (readVillain()||{}).personaLabel || ''   // 純字串,賽後剝削註解用,不參與評分
   });
   stats.decisions++; stats.scoreSum+=score;
   coachToast(score,tip);
@@ -1271,16 +1277,26 @@ function openStatsModal(){
 /* ========================================================================
    個人化教學：即時教練卡 + 賽後白話解說 + 個人漏洞分析（全唯讀，不碰牌局）
    ======================================================================== */
-function countOuts(hole,community){   // 還差幾張能讓牌型升級（教學用近似）
+function countOuts(hole,community){   // 只算「真正的聽牌補牌」：同花/順子完成張數（不把每個配對都當 out）
   if(community.length<3||community.length>=5) return {outs:0,draws:[]};
-  const known=[...hole,...community], base=evaluate7(known);
-  const rem=freshDeck().filter(c=>!known.some(k=>sameCard(k,c)));
-  let outs=0; for(const c of rem){ if(evaluate7([...hole,...community,c])[0]>base[0]) outs++; }
-  const sc={}; [...hole,...community].forEach(c=>sc[c.suit]=(sc[c.suit]||0)+1);
-  const rk=[...new Set([...hole,...community].map(c=>c.rank))].sort((a,b)=>a-b);
-  const draws=[]; if(Object.values(sc).some(n=>n===4)) draws.push('同花');
-  for(let i=0;i+3<rk.length;i++){ if(rk[i+3]-rk[i]<=4){ draws.push('順子'); break; } }
-  return {outs,draws:[...new Set(draws)]};
+  const cards=[...hole,...community];
+  const draws=[]; const outSet=new Set();   // 以 rank|suit 去重
+  // 同花聽牌：某花色剛好 4 張 → 還有 9 張同花可補
+  const sc={}; cards.forEach(c=>sc[c.suit]=(sc[c.suit]||0)+1);
+  for(let s=0;s<4;s++){ if(sc[s]===4){ draws.push('同花');
+    for(let r=2;r<=14;r++){ if(!cards.some(c=>c.rank===r&&c.suit===s)) outSet.add(r+'|'+s); } } }
+  // 順子聽牌：加哪些 rank 能湊成 5 連(含 A 當 1)
+  const rset=new Set(cards.map(c=>c.rank)); if(rset.has(14)) rset.add(1);
+  let straight=false;
+  for(let r=2;r<=14;r++){
+    if(rset.has(r)) continue;
+    const t=new Set(rset); t.add(r); if(r===14) t.add(1);
+    const arr=[...t].sort((a,b)=>a-b); let run=1, made=false;
+    for(let i=1;i<arr.length;i++){ if(arr[i]===arr[i-1]+1){ if(++run>=5){made=true;break;} } else run=1; }
+    if(made){ straight=true; for(let s=0;s<4;s++){ if(!cards.some(c=>c.rank===r&&c.suit===s)) outSet.add(r+'|'+s); } }
+  }
+  if(straight) draws.push('順子');
+  return {outs:outSet.size, draws:[...new Set(draws)]};
 }
 function sizeWord(f){ return !f?'':(f>=0.9?'約一個底池':f>=0.65?'約七成底池':'約半個底池'); }
 function whyLine(kind,rec,eqPct,oddsPct,recSize,actName,tip,score){
@@ -1303,6 +1319,21 @@ function coachAdvice(dec,eqPct,toCall,pot,draw){
   else why= toCall>0?`要再丟 ${toCall} 才能搶池底 ${pot}，但你的勝率只有 ${eqPct}%，追不上這個價——硬跟長期是賠錢，這手收手最省。`:`這手太弱（約 ${eqPct}%），不值得再投錢。`;
   return `${rec}　<span class="cb-why">${why}</span>`;
 }
+/* 剝削式教學:讀當前單一對手的人格/漏洞 → 一句「該怎麼修理他」（純唯讀，不碰算錢/評分） */
+function readVillain(){
+  const live=players.filter(x=>!x.isHuman&&!x.folded&&!x.sittingOut);
+  return live.length===1 ? live[0] : null;   // 只在單一對手時給,多人桌回 null 自動隱藏
+}
+function exploitTip(v, mix, toCall){
+  if(!v||!v.pers) return '';
+  const P=v.pers, persona=v.personaLabel, tilt=v.tilt||0;
+  if(tilt>0.45)        return `對手「${persona}」剛上頭、會亂打 → 手上有真牌別手軟，尺寸開大，他很可能氣到照付。`;
+  if(P.station>=0.6)   return `對手「${persona}」只敢跟不敢加 → 別唬他（唬不動），有真牌就加大收價值，他會一路付錢。`;
+  if(P.foldToAgg>=0.6) return `對手「${persona}」一被加注就怕 → 這裡多一個偷雞的理由，下注他很可能直接放棄。`;
+  if(P.trap>=0.5 && toCall>0) return `對手「${persona}」愛慢打埋伏 → 他這裡突然加注要小心，別輕易超池跟／反加。`;
+  if(P.bluff>=0.2||P.aggression>=1.5) return `對手「${persona}」愛開火亂唬 → 有牌別急著反加，留著抓他詐唬（多 call 一點）。`;
+  return '';   // 中性型(緊兇/老實)無明顯破綻,不強出提示,手機保持精簡
+}
 function renderCoach(){
   const box=el('coachBox'); if(!box) return;
   if(!coachOn){ box.style.display='none'; box.innerHTML=''; return; }
@@ -1316,16 +1347,25 @@ function renderCoach(){
   const made=community.length?handName(evaluate7([...p.hole,...community])):'';
   const draw=countOuts(p.hole,community), eqPct=Math.round(eq*100);
   let top=`<span class="cb-eq">${eqPct}%</span><span class="cb-made">${made?'目前：'+made:'翻牌前·只有底牌'}</span>`;
-  if(draw.outs>0&&draw.draws.length) top+=`<span class="cb-draw">還在聽 <b>${draw.draws.join('、')}</b>，牌堆裡有 <b>${draw.outs}</b> 張能讓你升級</span>`;
+  if(draw.outs>0&&draw.draws.length){
+    top+=`<span class="cb-draw">還在聽 <b>${draw.draws.join('、')}</b>，牌堆裡有 <b>${draw.outs}</b> 張能讓你升級`;
+    if(community.length===3||community.length===4){            // 2/4 法則:翻牌×4、轉牌×2(口訣近似)
+      const hitPct=Math.min(95, draw.outs*(community.length===3?4:2));
+      top+=` <i class="cb-hit">（約 ${hitPct}% 會補到）</i>`;
+    }
+    top+=`</span>`;
+  }
   let odds=''; if(toCall>0){ const oddPct=Math.round(potOdds*100), ok=eq>=potOdds+0.02;
     odds=`<div class="cb-odds"><span class="od"><span class="k">你的勝率</span><span class="v">${eqPct}%</span></span><span class="od ${ok?'ok':'no'}"><span class="k">划算門檻</span><span class="v">${oddPct}%</span></span></div>`; }
   const mix = gtoMix(eq, potOdds, toCall, pot, canRaise, players[0].chips, oppLive, draw.outs, stage);
   lastMix = mix;
   box.style.display='block';
+  const exTip = exploitTip(readVillain(), mix, toCall);   // 剝削提示(對手是X→你該Y),GTO 之上的「天花板」
   box.innerHTML=`<div class="cb-honest">⚖️ GTO 風格近似，非專業解牌器</div>`+
     `<div class="cb-top">${top}</div>${odds}`+
     `<div class="cb-line">${coachAdvice({action:mix.primary,shove:mix.shove},eqPct,toCall,pot,draw)}</div>`+
-    mixBarHTML(mix);
+    mixBarHTML(mix)+
+    (exTip?`<div class="cb-exploit">🎯 ${exTip}</div>`:'');
 }
 function coachToast(score,tip){
   if(!coachOn) return; const bar=el('actionBar'); if(!bar) return;
@@ -1628,6 +1668,12 @@ function showBanner(title, lines, fin){
             (r.mixFreq>=20?'（打在主流，漂亮）':r.mixFreq>0?'（偶爾這樣打也行）':`（不在最佳配比裡，主流是「${r.mixPrimary}」）`)+`</div>`:'';
           return `<div class="rv ${g}"><div class="rvhead"><span class="rvg">${ic}</span><span class="rvs">${r.stageName}·${r.actName}</span>${nums}${recTag}</div><div class="rvwhy">${r.why||r.tip}</div>${share}</div>`;
         }).join('')+`</div>`;
+      // 本手剝削註解：依對手人格給一句「看人下菜」原則（每手一句，不逐列重複）
+      const _vp=(fin.review.find(r=>r.villainPersona)||{}).villainPersona;
+      if(_vp){
+        const VX={'跟注站':'別唬他、有牌就加大收價值，他會一路付錢','石頭':'多偷他的盲；但他一下大注通常真有牌','瘋子':'少反加、留著抓他亂唬','狡猾':'小心他慢打埋伏的突襲加注','賭徒':'有牌耐心等他自爆送錢','緊兇':'他很穩、沒便宜可佔，別硬碰','老實':'他打得直白，照牌力跟就好'};
+        reviewHTML+=`<div class="reviewbox" style="margin-top:8px"><div class="rvvillain">🎯 這手對手是「${_vp}」：${VX[_vp]||'看人下菜、別用同一套打法'}</div></div>`;
+      }
       // 本手教學重點：抓分數最低那筆收斂成一條可記住的原則
       let pivot=null; fin.review.forEach(r=>{ if(r.score<90&&(!pivot||r.score<pivot.score)) pivot=r; });
       let msg;
