@@ -459,6 +459,36 @@
     border-radius:10px; padding:8px 11px; margin-top:10px; line-height:1.6;}
   .goodtag b{color:#aef0c6;}
   @media(prefers-reduced-motion:reduce){ #coachBox,#coachToast{animation:none;} }
+
+  /* ===== GTO 混合頻率條 ===== */
+  #coachBox .cb-honest{font-size:10.5px; color:var(--muted); opacity:.8; letter-spacing:.3px; margin-bottom:6px;}
+  #coachBox .cb-mixhd{font-size:10.5px; color:var(--muted); letter-spacing:.5px; margin:9px 0 4px;}
+  #coachBox .cb-freqbar{display:flex; height:14px; border-radius:7px; overflow:hidden; margin:0 0 6px; border:1px solid rgba(255,255,255,.1);}
+  #coachBox .cb-seg{height:100%; transition:flex .25s ease;}
+  #coachBox .cb-seg.raise{background:var(--gold);}
+  #coachBox .cb-seg.allin{background:var(--red);}
+  #coachBox .cb-seg.call{background:#aec2ff;}
+  #coachBox .cb-seg.check{background:#5b6b86;}
+  #coachBox .cb-seg.fold{background:#ff9aa6;}
+  #coachBox .cb-legend{display:flex; gap:12px; flex-wrap:wrap; font-size:11.5px; color:var(--muted); margin-bottom:2px;}
+  #coachBox .cb-leg b{font-size:12.5px;}
+  #coachBox .cb-leg.raise b{color:var(--gold);}
+  #coachBox .cb-leg.allin b{color:#ff9aa6;}
+  #coachBox .cb-leg.call b{color:#aec2ff;}
+  #coachBox .cb-leg.check b{color:#eaf2ff;}
+  #coachBox .cb-leg.fold b{color:#ff9aa6;}
+  @media(max-width:640px){
+    #coachBox .cb-freqbar{height:12px;}
+    #coachBox .cb-legend{gap:9px; font-size:11px;}
+    #coachBox .cb-leg b{font-size:12px;}
+  }
+  /* All-in 鈕金點提示 */
+  #quickBtns .btn.allin-hot{box-shadow:0 0 0 2px rgba(232,196,106,.5),0 0 14px rgba(255,60,80,.5); position:relative;}
+  #quickBtns .btn.allin-hot::after{content:""; position:absolute; top:-3px; right:-3px; width:8px; height:8px; border-radius:50%; background:#ff5566; box-shadow:0 0 6px #ff5566;}
+  /* 賽後回顧：占比一行 + 誠實小字 */
+  #banner .rvshare{font-size:11px; color:var(--muted); line-height:1.5; margin-top:3px; opacity:.9;}
+  #banner .rvshare b{color:var(--gold); font-size:12px;}
+  #banner .rv-honest{font-size:10.5px; color:var(--muted); opacity:.8; line-height:1.5; margin-bottom:6px;}
 </style>
 </head>
 <body>
@@ -634,7 +664,7 @@ const logs=[];
 
 /* 玩家數據（每場新遊戲重置） */
 let stats=null, handReview=[], handFlags={vpip:false,pfr:false}, handStartChips=0;
-let coachOn=true, lastHumanEq=null;   // 教學模式開關 + 勝率快取（每回合只算一次）
+let coachOn=true, lastHumanEq=null, lastMix=null;   // 教學模式開關 + 勝率快取 + 混合頻率快取（每回合只算一次）
 try{ coachOn = localStorage.getItem('pkCoach')!=='0'; }catch(e){}
 function resetStats(){ stats={hands:0,vpip:0,pfr:0,bb:0,decisions:0,scoreSum:0,curve:[],
   leaks:{chase:{c:0,cost:0},overfold:{c:0,cost:0},missValue:{c:0,cost:0},foldGood:{c:0,cost:0},spew:{c:0,cost:0}},
@@ -883,6 +913,89 @@ function baselineDecision(eq, potOdds, toCall, pot, canRaise, nOpp){
   if(eq >= potOdds+0.02) return {action:'call'};
   return {action:'fold'};
 }
+
+/* ============================================================================
+   gtoMix：GTO 風格混合頻率（確定性近似，非 solver）— 純供教學顯示 + 評分尺，零回歸
+   回 {fold,check,call,raise,allin, primary}，五槽整數、和=100。primary 對齊 baselineDecision。
+   ============================================================================ */
+function gtoMix(eq, potOdds, toCall, pot, canRaise, stack, oppLive, outs, stage){
+  const spr = stack / Math.max(pot, bigBlind);
+  const facing = toCall > 0;
+  const strongDraw = (outs||0) >= 8, midDraw = (outs||0) >= 4 && (outs||0) < 8;
+  const mw = Math.max(0, oppLive - 1), tight = 1 + mw*0.18;
+  const eqAdj = eq / tight;
+  const bluffCap = facing ? 0 : Math.max(0, 0.12 - mw*0.05);
+  let m = {fold:0, check:0, call:0, raise:0, allin:0};
+  if(!facing){
+    if(eqAdj >= 0.80)      m = {fold:0,check:18,call:0,raise:82,allin:0};
+    else if(eqAdj >= 0.62) m = {fold:0,check:32,call:0,raise:68,allin:0};
+    else if(eqAdj >= 0.48) m = {fold:0,check:60,call:0,raise:40,allin:0};
+    else if(strongDraw)    m = {fold:0,check:42,call:0,raise:58,allin:0};
+    else if(midDraw)       m = {fold:0,check:70,call:0,raise:30,allin:0};
+    else { const bl=Math.round(bluffCap*100); m = {fold:0,check:100-bl,call:0,raise:bl,allin:0}; }
+  } else {
+    const edge = eq - potOdds;
+    // 加注家族%（價值/半詐唬）— 強牌讓加注成為主線（怪物該梭就梭）
+    let raise = 0;
+    if(eqAdj >= 0.78)          raise = 55;
+    else if(eqAdj >= 0.62)     raise = 32;
+    else if(strongDraw)        raise = 30;
+    else if(midDraw)           raise = 12;
+    else if(toCall <= pot*0.4) raise = Math.round(bluffCap*100);   // facing 時 bluffCap=0
+    raise = Math.min(raise, canRaise ? 60 : 0);
+    // 蓋牌%（依 edge；臨界 ~50；強聽牌降低）
+    let fold;
+    if(Math.abs(edge) < 0.04)  fold = 50 - Math.round(edge*625);
+    else if(edge >= 0.04)      fold = Math.max(4, 30 - Math.round(edge*120));
+    else                       fold = Math.min(92, 70 - Math.round(edge*200));
+    if(strongDraw && edge > -0.12)   fold = Math.min(fold, 30);
+    else if(midDraw && edge > -0.06) fold = Math.min(fold, 45);
+    fold = Math.max(0, Math.min(fold, 100 - raise));
+    const call = Math.max(0, 100 - raise - fold);
+    m = {fold, check:0, call, raise, allin:0};
+  }
+  if(canRaise && m.raise > 0){
+    let toAllin = 0;
+    if(eq >= 0.82)                        toAllin = Math.max(toAllin, m.raise);
+    if(spr <= 2.5 && eqAdj >= 0.55)       toAllin = Math.max(toAllin, Math.round(m.raise*0.8));
+    if(stack < bigBlind*12 && strongDraw) toAllin = Math.max(toAllin, Math.round(m.raise*0.7));
+    toAllin = Math.min(toAllin, m.raise); m.raise -= toAllin; m.allin = toAllin;
+  }
+  if(!canRaise && (m.raise || m.allin)){ const back=m.raise+m.allin; m.raise=0; m.allin=0; if(facing) m.call+=back; else m.check+=back; }
+  // 正規化整數和=100（最大餘數法）
+  const keys=['fold','check','call','raise','allin'];
+  let sum=keys.reduce((s,k)=>s+Math.max(0,m[k]),0); if(sum<=0){ m.fold=100; sum=100; }
+  const fl=keys.map(k=>{ const raw=Math.max(0,m[k])/sum*100; return {k,n:Math.floor(raw),r:raw-Math.floor(raw)}; });
+  let left=100-fl.reduce((s,o)=>s+o.n,0); fl.sort((a,b)=>b.r-a.r);
+  for(let i=0;i<left;i++) fl[i%fl.length].n++;
+  const out={}; fl.forEach(o=>out[o.k]=o.n);
+  // 家族感知主線：raise+allin 合併比較，所有「建議／★／該」單一來源，永不打架
+  const rfam=out.raise+out.allin;
+  const cand=[['fold',out.fold],['check',out.check],['call',out.call],['raise',rfam]];
+  out.primary = cand.reduce((a,b)=> b[1]>a[1]?b:a)[0];
+  out.shove = out.primary==='raise' && out.allin>out.raise;   // 加注家族裡以全押為主
+  return out;
+}
+/* 混合感知評分：玩家選的動作在 mix 裡占比 → 分數/帶（加注家族含 all-in）。對齊既有 90/55 門檻 */
+function gradeFromMix(kind, mix){
+  let freq = kind==='raise' ? (mix.raise||0)+(mix.allin||0) : (mix[kind]||0);
+  let score, band;
+  if(freq>=20){ score=90+Math.round(Math.min(1,(freq-20)/50)*10); band='good'; }
+  else if(freq>=8){ score=55+Math.round((freq-8)/12*27); band='ok'; }
+  else { score=16+Math.round(freq/8*32); band='bad'; }
+  return {score, band, freq};
+}
+const ACTZH={raise:'加注',call:'跟注',check:'過牌',fold:'蓋牌',allin:'All-in'};
+function mixBarHTML(mix){
+  const order=['raise','allin','call','check','fold'];
+  const segs=order.filter(k=>mix[k]>0);
+  // ★對齊主線（與建議同源）：primary=raise 時標在加注家族中較大的那格
+  const star = mix.primary==='raise' ? (mix.allin>mix.raise?'allin':'raise') : mix.primary;
+  const bar=segs.map(k=>`<span class="cb-seg ${k}" style="flex:${mix[k]}" title="${ACTZH[k]} ${mix[k]}%"></span>`).join('');
+  const legend=segs.map(k=>`<span class="cb-leg ${k}">${k===star?'★ ':''}${ACTZH[k]} <b>${mix[k]}%</b></span>`).join('');
+  return `<div class="cb-mixhd">這手的打法分配（近似 GTO，非精算）</div>`+
+         `<div class="cb-freqbar">${bar}</div><div class="cb-legend">${legend}</div>`;
+}
 function botDecide(p){
   if(p.folded||p.allIn){ return afterAction(); }
   const oppLive = players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
@@ -931,31 +1044,42 @@ function recordHuman(p, kind){    // kind: fold / check / call / raise
     if(kind==='call'||kind==='raise') handFlags.vpip=true;
     if(kind==='raise') handFlags.pfr=true;
   }
-  let score=100, tip='好球';
-  if(kind!==rec){
-    if(rec==='fold'){ score=Math.max(18,100-Math.round(Math.max(0,potOdds-eq)*240)); tip='勝率追不上賠率，長期會虧'; }
-    else if(rec==='raise'){ if(kind==='fold'){score=16; tip='蓋掉了很可能是場上最大的牌';} else {score=72; tip='牌很強，下注／加注能多賺';} }
-    else if(rec==='call'){ if(kind==='fold'){score=56; tip='有賠率，這裡收手略可惜';} else {score=82; tip='牌力中等，加注偏冒險';} }
-    else if(rec==='check'){ if(kind==='raise'){score=66; tip='牌力普通，這是偷雞，偶一為之';} else if(kind==='fold'){score=14; tip='可以免費過牌看下一張，沒理由白白蓋牌';} }
-  }
-  // 個人漏洞歸類（重用已算好的 rec/kind/toCall/pot，不另算牌力）
+  // GTO 混合頻率評分：出手前 renderCoach 已算好 lastMix（命中零重算），否則現算
+  const mix = (lastMix && coachOn) ? lastMix
+            : gtoMix(eq, potOdds, toCall, pot, canRaise, p.chips, oppLive, (countOuts(p.hole,community)||{}).outs||0, stage);
+  const g = gradeFromMix(kind, mix); const score = g.score;
+  const RF = mix.raise + mix.allin;                                  // 加注家族（含 all-in）
+  const FREQ = kind==='raise' ? RF : (mix[kind]||0);
+  let tip;
+  if(g.band==='good') tip='好球';
+  else if(g.band==='ok') tip = (kind==='raise'?'這條偏進攻，偶一為之':kind==='fold'?'這裡偏緊，常有更賺的選擇':kind==='call'?'跟得過去，但未必最賺':'可以，但有更好的');
+  else { tip = (mix.primary==='fold')?'勝率追不上賠率，長期會虧'
+      : (mix.primary==='raise')?(kind==='fold'?'蓋掉了很可能是場上最大的牌':'牌很強，下注／加注能多賺')
+      : (mix.primary==='call')?'有賠率，這裡收手略可惜'
+      : (kind==='fold'?'可以免費過牌看下一張，沒理由白白蓋牌':'牌力普通，這一注比較像偷雞'); }
+  // 個人漏洞歸類：玩家選了低頻動作(band=bad) + 偏離方向落既有五桶（桶與 cost 公式不動）
   if(stats.leaks){
-    if(score>=90){ stats.strengths.good++; }
-    else if(rec==='fold'&&(kind==='call'||kind==='raise')){ stats.leaks.chase.c++; stats.leaks.chase.cost+=Math.max(0,toCall); }
-    else if(rec==='raise'&&kind==='fold'){ stats.leaks.overfold.c++; stats.leaks.overfold.cost+=Math.round(pot*0.5); }
-    else if(rec==='raise'&&kind==='call'){ stats.leaks.missValue.c++; stats.leaks.missValue.cost+=Math.round(pot*0.3); }
-    else if(rec==='call'&&kind==='fold'){ stats.leaks.foldGood.c++; stats.leaks.foldGood.cost+=Math.round(pot*0.25); }
-    else if(rec==='check'&&kind==='raise'){ stats.leaks.spew.c++; stats.leaks.spew.cost+=Math.max(toCall,bigBlind*2); }
-    else if(rec==='check'&&kind==='fold'){ stats.leaks.foldGood.c++; stats.leaks.foldGood.cost+=Math.round(pot*0.2); }
+    const rfDom = RF >= Math.max(mix.call, mix.check, mix.fold);   // 加注家族是主線
+    if(g.band==='good'){
+      stats.strengths.good++;
+      if(kind==='call' && RF>mix.call && RF>=45){ stats.leaks.missValue.c++; stats.leaks.missValue.cost+=Math.round(pot*0.3); }  // 好牌只敢跟（該梭/該加卻只跟）
+    } else if(g.band==='bad'){
+      if(kind==='fold' && toCall<=0){ stats.leaks.foldGood.c++; stats.leaks.foldGood.cost+=Math.round(pot*0.2); }          // 免費卻蓋
+      else if(kind==='fold' && RF>=20){ stats.leaks.overfold.c++; stats.leaks.overfold.cost+=Math.round(pot*0.5); }        // 強牌該攻卻蓋
+      else if(kind==='fold'){ stats.leaks.foldGood.c++; stats.leaks.foldGood.cost+=Math.round(pot*0.25); }                 // 便宜門票卻蓋
+      else if(kind==='call'){ stats.leaks.chase.c++; stats.leaks.chase.cost+=Math.max(0,toCall); }                         // 沒賠率還跟
+      else if(kind==='raise'){ stats.leaks.spew.c++; stats.leaks.spew.cost+=Math.max(toCall,bigBlind*2); }                 // 弱牌亂加
+    }
   }
   const eqPct=Math.round(eq*100), oddsPct=Math.round(Math.max(0,potOdds)*100);
   const actName={fold:'蓋牌',check:'過牌',call:'跟注',raise:'下注'}[kind];
   handReview.push({
     stageName:{preflop:'翻前',flop:'翻牌',turn:'轉牌',river:'河牌'}[stage]||'',
     actName, score, tip,
-    eqPct, oddsPct, toCall, recAction:rec, recSize:best.sizeFrac,
-    recLabel:{fold:'蓋牌',check:'過牌',call:'跟注',raise:'加注／下注'}[rec],
-    why: whyLine(kind,rec,eqPct,oddsPct,best.sizeFrac,actName,tip,score)
+    eqPct, oddsPct, toCall, recAction:mix.primary, recSize:best.sizeFrac,
+    recLabel:{fold:'蓋牌',check:'過牌',call:'跟注',raise:'加注／下注'}[mix.primary],
+    why: whyLine(kind,mix.primary,eqPct,oddsPct,best.sizeFrac,actName,tip,score),
+    mixFreq: FREQ, mixPrimary: {fold:'蓋牌',check:'過牌',call:'跟注',raise:'加注'}[mix.primary]
   });
   stats.decisions++; stats.scoreSum+=score;
   coachToast(score,tip);
@@ -1054,11 +1178,14 @@ function whyLine(kind,rec,eqPct,oddsPct,recSize,actName,tip,score){
   return tip;
 }
 function coachAdvice(dec,eqPct,toCall,pot,draw){
-  const tag={raise:'加注',call:'跟注',check:'過牌',fold:'蓋牌'}[dec.action];
-  const rec=`<span class="cb-rec ${dec.action}">建議：${tag}</span>`; let why='';
-  if(dec.action==='raise') why= toCall>0?`你這手夠強（贏面約 ${eqPct}%），與其只是跟，不如反加注，趁對手還在多撈一點。`:`沒人下注又輪到你，這手不弱（約 ${eqPct}%）——主動下注，逼對手付錢才看得到下一張牌。`;
-  else if(dec.action==='call') why=`池底現在有 ${pot}，你只要再丟 ${toCall} 就能繼續搶——等於花 ${toCall} 搶 ${pot}。你的勝率 ${eqPct}% 追得上這個價，跟下去長期划算。`+(draw.outs>0?`（你還在聽牌，補到就更大。）`:'');
-  else if(dec.action==='check') why=`不用花錢就能免費看下一張公共牌，先過牌、把這手看下去，沒必要現在就投錢。`;
+  const shove=dec.shove, act=dec.action;
+  const tag = act==='raise' ? (shove?'全押':'加注') : {call:'跟注',check:'過牌',fold:'蓋牌'}[act];
+  const cls = (act==='raise'&&shove) ? 'allin' : act;
+  const rec=`<span class="cb-rec ${cls}">建議：${tag}</span>`; let why='';
+  if(act==='raise') why = shove ? `這手夠強又適合直接梭（贏面約 ${eqPct}%）——一次把籌碼全推進去，給對手最大壓力。`
+      : (toCall>0?`你這手夠強（贏面約 ${eqPct}%），與其只是跟，不如反加注，趁對手還在多撈一點。`:`沒人下注又輪到你，這手不弱（約 ${eqPct}%）——主動下注，逼對手付錢才看得到下一張牌。`);
+  else if(act==='call') why=`池底現在有 ${pot}，你只要再丟 ${toCall} 就能繼續搶——等於花 ${toCall} 搶 ${pot}。你的勝率 ${eqPct}% 追得上這個價，跟下去長期划算。`+(draw.outs>0?`（你還在聽牌，補到就更大。）`:'');
+  else if(act==='check') why=`不用花錢就能免費看下一張公共牌，先過牌、把這手看下去，沒必要現在就投錢。`;
   else why= toCall>0?`要再丟 ${toCall} 才能搶池底 ${pot}，但你的勝率只有 ${eqPct}%，追不上這個價——硬跟長期是賠錢，這手收手最省。`:`這手太弱（約 ${eqPct}%），不值得再投錢。`;
   return `${rec}　<span class="cb-why">${why}</span>`;
 }
@@ -1072,15 +1199,19 @@ function renderCoach(){
   const toCall=betToMatch-p.streetBet, pot=totalPot();
   const potOdds=toCall>0?toCall/(pot+toCall):0;
   const canRaise=(p.streetBet+p.chips)>betToMatch;
-  const dec=baselineDecision(eq,potOdds,toCall,pot,canRaise,oppLive);
   const made=community.length?handName(evaluate7([...p.hole,...community])):'';
   const draw=countOuts(p.hole,community), eqPct=Math.round(eq*100);
   let top=`<span class="cb-eq">${eqPct}%</span><span class="cb-made">${made?'目前：'+made:'翻牌前·只有底牌'}</span>`;
   if(draw.outs>0&&draw.draws.length) top+=`<span class="cb-draw">還在聽 <b>${draw.draws.join('、')}</b>，牌堆裡有 <b>${draw.outs}</b> 張能讓你升級</span>`;
   let odds=''; if(toCall>0){ const oddPct=Math.round(potOdds*100), ok=eq>=potOdds+0.02;
     odds=`<div class="cb-odds"><span class="od"><span class="k">你的勝率</span><span class="v">${eqPct}%</span></span><span class="od ${ok?'ok':'no'}"><span class="k">划算門檻</span><span class="v">${oddPct}%</span></span></div>`; }
+  const mix = gtoMix(eq, potOdds, toCall, pot, canRaise, players[0].chips, oppLive, draw.outs, stage);
+  lastMix = mix;
   box.style.display='block';
-  box.innerHTML=`<div class="cb-top">${top}</div>${odds}<div class="cb-line">${coachAdvice(dec,eqPct,toCall,pot,draw)}</div>`;
+  box.innerHTML=`<div class="cb-honest">⚖️ GTO 風格近似，非專業解牌器</div>`+
+    `<div class="cb-top">${top}</div>${odds}`+
+    `<div class="cb-line">${coachAdvice({action:mix.primary,shove:mix.shove},eqPct,toCall,pot,draw)}</div>`+
+    mixBarHTML(mix);
 }
 function coachToast(score,tip){
   if(!coachOn) return; const bar=el('actionBar'); if(!bar) return;
@@ -1092,7 +1223,7 @@ function coachToast(score,tip){
   t.className=cls; t.innerHTML=msg; bar.appendChild(t); setTimeout(()=>t.remove(),1750);
 }
 function clearCoachFx(){ const cb=el('coachBox'); if(cb){cb.style.display='none'; cb.innerHTML='';}
-  document.querySelectorAll('#coachToast').forEach(n=>n.remove()); lastHumanEq=null; }
+  document.querySelectorAll('#coachToast').forEach(n=>n.remove()); lastHumanEq=null; lastMix=null; }
 function syncCoachBtn(){ const b=el('coachBtn'); if(!b) return;
   b.classList.toggle('on',coachOn); b.textContent=coachOn?'🎓 教練 ON':'🎓 教練 OFF'; }
 function leakReport(){
@@ -1357,6 +1488,7 @@ function setActionBar(){
     });
     const ai=document.createElement('button'); ai.className='btn'; ai.textContent='All-in '+allInTo;
     ai.onclick=()=>{ sl.value=allInTo; el('betAmt').textContent=allInTo; }; qb.appendChild(ai);
+    if(lastMix && lastMix.allin>=20) ai.classList.add('allin-hot');   // GTO 建議該梭 → 金點提示
   }
   renderCoach();
 }
@@ -1370,12 +1502,15 @@ function showBanner(title, lines, fin){
     reviewHTML=`<div class="netres ${net>=0?'pos':'neg'}">本手結果 ${net>=0?'+':''}${net}</div>`;
     if(fin.review.length){
       reviewHTML+=`<div class="reviewbox"><div class="rvtitle">📋 本手回顧（你的每個決定，為什麼）</div>`+
+        `<div class="rv-honest">百分比是「GTO 風格近似」算的，方向對、能練觀念，但不是專業解牌器，別當聖旨。</div>`+
         fin.review.map(r=>{
           const g=r.score>=90?'good':r.score>=55?'ok':'bad', ic=r.score>=90?'✓':r.score>=55?'△':'✗';
           const nums=r.toCall>0?`<span class="rvnums">勝率 <b>${r.eqPct}%</b> vs 門票 <i>${r.oddsPct}%</i></span>`:`<span class="rvnums">你的勝率 <b>${r.eqPct}%</b></span>`;
           const map={蓋牌:'fold',過牌:'check',跟注:'call',下注:'raise'};
           const recTag=(r.score<90 && r.recAction&&r.recAction!==map[r.actName])?`<span class="rvrec">該：<b>${r.recLabel}</b></span>`:'';
-          return `<div class="rv ${g}"><div class="rvhead"><span class="rvg">${ic}</span><span class="rvs">${r.stageName}·${r.actName}</span>${nums}${recTag}</div><div class="rvwhy">${r.why||r.tip}</div></div>`;
+          const share=(r.mixFreq!=null)?`<div class="rvshare">你選的「${r.actName}」在最佳策略裡約占 <b>${r.mixFreq}%</b>`+
+            (r.mixFreq>=20?'（打在主流，漂亮）':r.mixFreq>0?'（偶爾這樣打也行）':`（不在最佳配比裡，主流是「${r.mixPrimary}」）`)+`</div>`:'';
+          return `<div class="rv ${g}"><div class="rvhead"><span class="rvg">${ic}</span><span class="rvs">${r.stageName}·${r.actName}</span>${nums}${recTag}</div><div class="rvwhy">${r.why||r.tip}</div>${share}</div>`;
         }).join('')+`</div>`;
       // 本手教學重點：抓分數最低那筆收斂成一條可記住的原則
       let pivot=null; fin.review.forEach(r=>{ if(r.score<90&&(!pivot||r.score<pivot.score)) pivot=r; });
@@ -1444,7 +1579,8 @@ el('rulesBtn').onclick=()=>alert(
   '• 桌面陸續翻出 5 張公共牌：翻牌(3)→轉牌(1)→河牌(1)。\n' +
   '• 用「底牌＋公共牌」湊出最強的 5 張。\n\n' +
   '牌型由小到大：\n高牌 < 一對 < 兩對 < 三條 < 順子 < 同花 < 葫蘆 < 鐵支 < 同花順\n\n' +
-  '每圈可以：蓋牌 / 過牌 / 跟注 / 加注 / All-in。\n撐到最後或攤牌最大者贏得底池。'
+  '每圈可以：蓋牌 / 過牌 / 跟注 / 加注 / All-in。\n撐到最後或攤牌最大者贏得底池。' +
+  '\n\n※ 教練的「打法分配 %」是 GTO 風格的近似估算（用勝率＋賠率＋聽牌＋籌碼深度推），不是專業解牌器的精算解，目的是幫你養牌感、不是標準答案。'
 );
 
 /* 人類行動按鈕 */
