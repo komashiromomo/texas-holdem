@@ -489,6 +489,19 @@
   #banner .rvshare{font-size:11px; color:var(--muted); line-height:1.5; margin-top:3px; opacity:.9;}
   #banner .rvshare b{color:var(--gold); font-size:12px;}
   #banner .rv-honest{font-size:10.5px; color:var(--muted); opacity:.8; line-height:1.5; margin-bottom:6px;}
+
+  /* ===== 對手人格標籤 + 臨場對話泡泡 ===== */
+  .seat .name .plabel{font-size:9px; font-weight:700; color:var(--muted); background:rgba(255,255,255,.08);
+    border-radius:6px; padding:0 5px; margin-left:4px; letter-spacing:.5px; vertical-align:middle;}
+  @media(max-width:640px){ .seat .name .plabel{font-size:8px; padding:0 3px; margin-left:2px;} }
+  .chatbub{position:absolute; transform:translate(-50%,-50%); z-index:9; pointer-events:none;
+    background:rgba(250,253,255,.95); color:#1a2230; font-size:12.5px; font-weight:800;
+    padding:4px 11px; border-radius:13px; white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,.45);
+    animation:fxPop .16s cubic-bezier(.2,1.6,.4,1) both, chatOut .45s ease 1.7s forwards;}
+  .chatbub::after{content:''; position:absolute; bottom:-5px; left:50%; transform:translateX(-50%);
+    border:6px solid transparent; border-top-color:rgba(250,253,255,.95); border-bottom:0;}
+  @keyframes chatOut{to{opacity:0; transform:translate(-50%,-72%) scale(.95);}}
+  @media(prefers-reduced-motion:reduce){ .chatbub{animation:none;} }
 </style>
 </head>
 <body>
@@ -656,6 +669,17 @@ function estimateEquity(hole, community, numOpp, iters){
 
 /* ---------- 遊戲狀態 ---------- */
 const BOT_NAMES=['阿傑','小美','老王','Money哥','沉默羊','機器K','幸運仔','鯊魚姐'];
+// 可辨識人格原型（只影響 bot 行為，不碰教練最佳解尺）
+const PERSONAS = {
+  rock:    {label:'石頭',   aggro:0.70, bluff:0.03, station:0.12, foldToAgg:0.70, trap:0.15, size:'std',  tempo:'slow',   tiltProne:0.20, chat:0.10},
+  station: {label:'跟注站', aggro:0.55, bluff:0.04, station:0.85, foldToAgg:0.15, trap:0.05, size:'min',  tempo:'fast',   tiltProne:0.50, chat:0.50},
+  tag:     {label:'緊兇',   aggro:1.15, bluff:0.13, station:0.18, foldToAgg:0.45, trap:0.22, size:'std',  tempo:'normal', tiltProne:0.25, chat:0.20},
+  lag:     {label:'瘋子',   aggro:1.70, bluff:0.28, station:0.40, foldToAgg:0.25, trap:0.10, size:'big',  tempo:'fast',   tiltProne:0.60, chat:0.60},
+  trapper: {label:'狡猾',   aggro:1.00, bluff:0.15, station:0.45, foldToAgg:0.35, trap:0.55, size:'std',  tempo:'slow',   tiltProne:0.30, chat:0.30},
+  gambler: {label:'賭徒',   aggro:1.50, bluff:0.22, station:0.60, foldToAgg:0.20, trap:0.08, size:'wild', tempo:'fast',   tiltProne:0.80, chat:0.55},
+  abc:     {label:'老實',   aggro:0.95, bluff:0.06, station:0.32, foldToAgg:0.40, trap:0.10, size:'std',  tempo:'normal', tiltProne:0.30, chat:0.22},
+};
+const BOT_PERSONA = {'鯊魚姐':'lag','沉默羊':'rock','機器K':'tag','Money哥':'station','幸運仔':'gambler','老王':'trapper','阿傑':'abc','小美':'tag'};
 let players=[], community=[], deck=[];
 let dealerIndex=0, currentIndex=0, betToMatch=0, lastRaiseSize=0;
 let smallBlind=5, bigBlind=10, startStack=1000, difficulty='normal';
@@ -714,10 +738,15 @@ function mkPlayer(name, isHuman){
   // 決策準度 skill：0=亂打的魚，1=幾乎照最佳解打。難度決定 bot 落在哪個區間
   const band = {easy:[0.10,0.42], normal:[0.42,0.74], hard:[0.74,0.96]}[difficulty] || [0.42,0.74];
   const skill = isHuman ? 1 : band[0] + Math.random()*(band[1]-band[0]);
+  const P = isHuman ? null : (PERSONAS[BOT_PERSONA[name]] || PERSONAS.abc);
+  const r=()=>0.85+Math.random()*0.3;   // 同原型也各有微差
   return {
     name, isHuman, chips:startStack, hole:[], streetBet:0, committed:0,
     folded:false, allIn:false, hasActed:false, sittingOut:false, lastAction:'', score:null, isWinner:false,
-    pers:{ skill, aggression:0.85+Math.random()*0.5, bluff:0.05+Math.random()*0.12 }
+    personaLabel: P?P.label:'', tilt:0, _chipStart:startStack,
+    pers: P ? { skill, aggression:P.aggro*r(), bluff:P.bluff*r(), station:P.station, foldToAgg:P.foldToAgg,
+                trap:P.trap, size:P.size, tempo:P.tempo, tiltProne:P.tiltProne, chat:P.chat }
+            : { skill, aggression:0.85+Math.random()*0.5, bluff:0.08, station:0.3, foldToAgg:0.4, trap:0.15, size:'std', tempo:'normal', tiltProne:0.3, chat:0.2 }
   };
 }
 
@@ -734,7 +763,8 @@ function startNewHand(){
   do{ dealerIndex=(dealerIndex+1)%players.length; }while(players[dealerIndex].sittingOut);
 
   players.forEach(p=>{ p.hole=[]; p.streetBet=0; p.committed=0; p.allIn=false; p.hasActed=false;
-    p.lastAction=''; p.score=null; p.isWinner=false; p.winAmt=0; p.bestCards=null; p.folded=p.sittingOut; });
+    p.lastAction=''; p.score=null; p.isWinner=false; p.winAmt=0; p.bestCards=null; p.folded=p.sittingOut;
+    p._chipStart=p.chips; p.tilt=(p.tilt||0)*0.55; });
   community=[]; deck=shuffle(freshDeck()); betToMatch=0; lastRaiseSize=bigBlind; stage='preflop'; handNo++;
   el('handNo').textContent = handNo;
 
@@ -872,9 +902,11 @@ function showdown(){
     resultLines.unshift(`<span class="youline">${(_me.isWinner&&_me.winAmt>0)?`你湊出「${hn}」——就是被<b>描金</b>的那 5 張，這把收下底池。`:`你的牌型是「${hn}」，由<b>描金</b>那 5 張組成；這次對手更大，下手再來。`}</span>`);
   }
   players.forEach(p=>{ p.committed=0; p.streetBet=0; });
+  updateMoods();
   stage='done';
   render();
   players.filter(p=>p.isWinner).forEach(coinBurstToSeat);
+  players.filter(p=>p.isWinner&&!p.isHuman).forEach(w=>botChat(players.indexOf(w),'win'));
   showBanner('🃏 攤牌結果', resultLines, finalizeHandStats());
 }
 function awardUncontested(winner){
@@ -882,6 +914,7 @@ function awardUncontested(winner){
   const pot=totalPot(); winner.chips+=pot; winner.isWinner=true; winner.winAmt=pot;
   log(`${tag(winner)} 贏得底池 <span class="hl">${pot}</span>（其他人蓋牌）`);
   players.forEach(p=>{ p.committed=0; p.streetBet=0; });
+  updateMoods();
   stage='done'; render();
   coinBurstToSeat(winner);
   showBanner('🏆 本手結束', [`<b>${winner.name}</b> 收下底池 <b>${pot}</b>`], finalizeHandStats());
@@ -892,7 +925,7 @@ function promptTurn(){
   const p=players[currentIndex];
   render();
   if(p.isHuman){ busy=false; setActionBar(); }
-  else { busy=true; setActionBar(); setTimeout(()=>botDecide(p), 650+Math.random()*700); }
+  else { busy=true; setActionBar(); setTimeout(()=>botDecide(p), 140); }   // 思考時間改由 botDecide 依難度/個性決定
 }
 function betSizeTo(p, frac){ // 依底池比例算「加注到」目標
   const pot=Math.max(totalPot(), bigBlind);
@@ -996,35 +1029,89 @@ function mixBarHTML(mix){
   return `<div class="cb-mixhd">這手的打法分配（近似 GTO，非精算）</div>`+
          `<div class="cb-freqbar">${bar}</div><div class="cb-legend">${legend}</div>`;
 }
+/* ---------- bot 人味：尺寸個人化 / 思考時間 / 排程守門 / 對話泡泡 / 情緒 ---------- */
+function botSize(p, baseFrac){
+  const P=p.pers; let frac = baseFrac*(0.8 + P.aggression*0.28);
+  if(P.size==='min') frac=Math.min(frac,0.5);
+  else if(P.size==='big') frac*=1.4;
+  else if(P.size==='wild') frac*=(0.55+Math.random()*1.2);
+  frac*=(0.85+Math.random()*0.3);
+  let target=betSizeTo(p, frac);
+  if(P.size==='wild' && Math.random()<0.16) target=p.streetBet+p.chips;   // 賭徒偶爾直接梭
+  return target;
+}
+function botThink(p, diff){
+  const tm={fast:0.6, normal:1, slow:1.45}[p.pers.tempo]||1;
+  let t=(350 + diff*1950)*tm;
+  if(Math.random()<0.12) t+=600+Math.random()*900;   // 偶爾 tank / 搖
+  return Math.max(250, Math.round(t*(0.8+Math.random()*0.4)));
+}
+function botCommit(p, diff, fn){    // 等「思考時間」後才真正行動；守門避免狀態變了還亂動
+  const hn=handNo, idx=players.indexOf(p);
+  setTimeout(()=>{ if(handNo!==hn||currentIndex!==idx||p.folded||p.allIn||stage==='done') return; fn(); }, botThink(p,diff));
+}
+const CHAT={ allin:['全壓!','梭了','跟不跟？','都進去了'], raise:['加！','怕了嗎','上','再加一點'],
+  win:['謝啦~','這把我的','爽','送分謝謝','哈哈'], call:['跟','看一張','再來'] };
+function botChat(idx, kind){
+  const p=players[idx]; if(!p||p.isHuman||reduceMotion||!fxLayer()) return;
+  if(Math.random() > (p.pers.chat||0)) return;
+  const lines=CHAT[kind]; if(!lines) return;
+  const px=seatPx(idx);
+  const b=document.createElement('div'); b.className='chatbub';
+  b.textContent=lines[Math.floor(Math.random()*lines.length)];
+  b.style.left=px.x+'px'; b.style.top=(px.y-tableRect().height*0.10)+'px';
+  fxLayer().appendChild(b); setTimeout(()=>b.remove(),2200);
+}
+function updateMoods(){   // 輸大池上頭(tilt↑)、贏大池更穩(tilt↓)
+  players.forEach(p=>{ if(p.isHuman||p.sittingOut) return;
+    const d=p.chips-(p._chipStart||p.chips);
+    if(d < -0.25*startStack) p.tilt=Math.min(1,(p.tilt||0)+(p.pers.tiltProne||0.3)*0.7);
+    else if(d > 0.3*startStack) p.tilt=Math.max(0,(p.tilt||0)-0.25);
+  });
+}
 function botDecide(p){
   if(p.folded||p.allIn){ return afterAction(); }
   const oppLive = players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   const eqTrue = estimateEquity(p.hole, community, Math.min(oppLive,4), oppLive>3?120:170);
-  const skill=p.pers.skill, loose=1-skill, agg=p.pers.aggression;
-  const eq = Math.max(0, Math.min(1, eqTrue + loose*0.26*(Math.random()*2-1)));   // 越弱越會看走眼
+  const P=p.pers, skill=P.skill, tilt=p.tilt||0;
+  const eq = Math.max(0, Math.min(1, eqTrue + (1-skill)*0.26*(Math.random()*2-1)));   // 越弱越會看走眼
   const toCall = betToMatch - p.streetBet;
   const pot = totalPot();
   const potOdds = toCall>0 ? toCall/(pot+toCall) : 0;
   const canRaise = (p.streetBet+p.chips) > betToMatch;
   const rec = baselineDecision(eq, potOdds, toCall, pot, canRaise, oppLive).action;
+  const aggro = P.aggression*(1+tilt*0.4);                 // 上頭更兇
+  const bluff = Math.min(0.5, P.bluff + tilt*0.12);
+  const station = Math.min(0.95, P.station + tilt*0.3);
+  const foldToAgg = Math.max(0.05, P.foldToAgg*(1-tilt*0.4));
+  const idx = players.indexOf(p);
+  let diff = toCall<=0 ? 0.18 : Math.max(0, 0.85 - Math.abs(eq-potOdds)*3);   // 臨界=難=想久
+  if(eq<0.12 && toCall>0) diff=0.05;                       // 垃圾秒蓋
+  if(toCall>pot) diff=Math.min(1, diff+0.22);              // 大注更難
+  const raiseAct=(frac)=>{ const t=botSize(p,frac); botCommit(p,diff,()=>{ const allIn=(t>=p.streetBet+p.chips); botChat(idx, allIn?'allin':'raise'); doRaiseTo(p,t); }); };
+  const callAct=()=>botCommit(p,diff,()=>doCheckCall(p));
+  const foldAct=()=>botCommit(p,diff,()=>doFold(p));
 
   if(rec==='raise' && canRaise){
-    if(skill>0.5 || Math.random()<0.7) return doRaiseTo(p, betSizeTo(p, 0.6+0.2*agg));
-    return doCheckCall(p);                                              // 弱手有時錯失價值
+    if(Math.random() < P.trap*0.8 && eqTrue>0.6) return callAct();         // 慢打埋伏
+    if(skill>0.45 || Math.random()<0.75) return raiseAct(0.6);
+    return callAct();                                                       // 弱手有時錯失價值
   }
   if(rec==='check'){
-    if(canRaise && Math.random() < p.pers.bluff*(0.6+loose)) return doRaiseTo(p, betSizeTo(p,0.5));   // 偷雞
-    return doCheckCall(p);
+    if(canRaise && Math.random() < bluff*(0.7+aggro*0.3)) return raiseAct(0.5);   // 偷雞
+    return callAct();
   }
   if(rec==='call'){
-    if(canRaise && skill>0.7 && Math.random()<0.18*agg) return doRaiseTo(p, betSizeTo(p,0.6));        // 高手施壓
-    return doCheckCall(p);
+    if(canRaise && Math.random() < 0.12*aggro + (skill>0.7?0.1:0)) return raiseAct(0.6);   // 施壓
+    return callAct();
   }
   // rec==='fold'
-  if(toCall<=0) return doCheckCall(p);
-  if(toCall <= pot*0.6 && Math.random() < loose*0.55) return doCheckCall(p);                          // 跟注站：沒賠率也跟
-  if(canRaise && toCall < pot*0.35 && Math.random() < p.pers.bluff*loose*1.4) return doRaiseTo(p, betSizeTo(p,0.6)); // 亂噴詐唬
-  return doFold(p);
+  if(toCall<=0) return callAct();
+  const betBig = toCall > pot*0.6;
+  if(!betBig && Math.random() < station*0.7) return callAct();                              // 跟注站：小注照跟
+  if(betBig && Math.random() < station*0.4*(1-foldToAgg)) return callAct();                 // 大注：站也部分被嚇退
+  if(canRaise && toCall < pot*0.4 && Math.random() < bluff*0.9) return raiseAct(0.6);       // 亂噴詐唬
+  return foldAct();
 }
 
 /* ========================================================================
@@ -1416,7 +1503,7 @@ function render(){
     const actCls = actKind(p.lastAction);
     seat.innerHTML=`
       <div class="who">
-        <div class="name">${p.isHuman?'<span class="you">●</span>':''}${p.name}</div>
+        <div class="name">${p.isHuman?'<span class="you">●</span>':''}${p.name}${p.personaLabel&&!p.isHuman?`<span class="plabel">${p.tilt>0.45?'😡':''}${p.personaLabel}</span>`:''}</div>
         <div class="chips ${low?'low':''}">🪙 ${p.sittingOut?'出局':p.chips}</div>
         <div class="hole">${holeHTML}</div>
         ${p.score&&revealAll&&!p.folded?`<div class="handname">${handName(p.score)}</div>`:''}
