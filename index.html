@@ -363,6 +363,8 @@
   #banner .netres{font-weight:800; font-size:15px; margin:8px 0 4px;}
   /* 攤牌一覽：把每位攤牌者的底牌+牌型放進卡片裡，免得被卡片擋住看不到桌面 */
   #banner .sdreveal{margin:10px 0 4px; text-align:left; background:rgba(0,0,0,.32); border:1px solid rgba(255,216,77,.22); border-radius:10px; padding:8px 10px;}
+  #banner .sdboard{display:flex; align-items:center; gap:8px; padding-bottom:7px; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,.12);}
+  #banner .sdblabel{flex:0 0 auto; min-width:50px; font-size:12px; font-weight:700; color:var(--gold);}
   #banner .sdrvtitle{font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:700;}
   #banner .sdrow{display:flex; align-items:center; gap:8px; padding:3px 0;}
   #banner .sdrow+.sdrow{border-top:1px solid rgba(255,255,255,.06);}
@@ -650,7 +652,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v9 · 職業難度</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v10 · 攤牌秀公牌</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -1897,16 +1899,19 @@ function setActionBar(){
 }
 
 /* ---------- 結果橫幅 ---------- */
-function showdownRevealHTML(contenders){   // 攤牌一覽：依牌力大→小排，贏家標 🏆
+function showdownRevealHTML(contenders){   // 攤牌一覽：公共牌 + 每人底牌+成牌，依牌力大→小排，贏家標 🏆
   if(!contenders || contenders.length<2) return '';
   const sorted=[...contenders].sort((a,b)=>cmpScore(b.score,a.score));
+  const boardHTML = community.length ? community.map(c=>cardHTML(c,true,true)).join('') : '';
   const rows=sorted.map(p=>
     `<div class="sdrow${p.isWinner?' win':''}">`+
       `<span class="sdname">${p.isHuman?'你':p.name}${p.isWinner?' 🏆':''}</span>`+
       `<span class="sdcards">${p.hole.map(c=>cardHTML(c,true,true)).join('')}</span>`+
       `<span class="sdhand">${handName(p.score)}</span>`+
     `</div>`).join('');
-  return `<div class="sdreveal"><div class="sdrvtitle">🂠 攤牌一覽（誰拿什麼）</div>${rows}</div>`;
+  return `<div class="sdreveal">`+
+    (boardHTML?`<div class="sdboard"><span class="sdblabel">公共牌</span><span class="sdcards">${boardHTML}</span></div>`:'')+
+    `<div class="sdrvtitle">🂠 攤牌一覽（底牌＋成牌）</div>${rows}</div>`;
 }
 function showBanner(title, lines, fin, revealHTML){
   const b=el('banner');
