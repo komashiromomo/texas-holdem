@@ -54,7 +54,7 @@
   /* ---------- 牌桌 ---------- */
   #tableWrap{flex:1; min-height:0; position:relative; display:flex; align-items:center; justify-content:center; padding:18px;}
   #table{
-    position:relative; width:min(96vw,1100px); height:min(64vh,620px);
+    position:relative; width:min(96vw,1100px); height:100%; max-height:min(64vh,620px);
     border-radius:50%/50%;
     background:
       radial-gradient(120% 120% at 50% 35%, var(--felt1), var(--felt2) 70%, #123c2a 100%);
@@ -573,6 +573,13 @@
   /* 出手前教練卡 */
   #coachBox{max-width:760px; margin:0 auto 8px; background:linear-gradient(180deg,rgba(20,30,52,.92),rgba(12,20,36,.92));
     border:1px solid rgba(232,196,106,.45); border-radius:12px; padding:10px 13px; animation:betFade .2s ease both;}
+  /* 桌機/平板（寬且夠高）：教練卡放左、滑桿/快捷/主按鈕疊右——用寬度換高度，行動列不再撐爆把牌桌擠到溢出 */
+  @media (min-width:900px) and (min-height:600px){
+    #controls.acting{ display:grid; grid-template-columns:auto 1fr; grid-template-areas:"coach raise" "coach quick" "coach main";
+      align-items:center; gap:8px 18px; max-width:1040px; margin:0 auto; }
+    #coachBox{ grid-area:coach; width:400px; max-width:400px; margin:0; align-self:stretch; max-height:30vh; overflow-y:auto; }
+    .raiserow{ grid-area:raise; } .quick{ grid-area:quick; } .mainrow{ grid-area:main; }
+  }
   #coachBox .cb-top{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;}
   #coachBox .cb-eq{font-size:25px; font-weight:800; color:var(--gold); line-height:1;}
   #coachBox .cb-made{font-size:13px; color:var(--txt); font-weight:700;}
@@ -685,7 +692,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v13 · 勝率教學</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v14 · 桌機版面</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -1706,10 +1713,11 @@ function seatPos(i,n){
   const narrow = window.innerWidth < 560;          // 窄螢幕把座位往桌內收，避免溢出/被頂列或教練卡切到
   let rx = narrow?38:44, ry = narrow?42:46;
   if(landscapeShort){ const many=n>=8; rx=many?49:46; ry=many?47:40; }   // 橫向：人多時把座位環撐開，側邊座位才不會上下擠在一起
+  else if(!narrow){ ry=42; }            // 桌機/平板：座位往內收一點，教練卡撐高行動列時上下座位才不被切
   const theta=(90 + i*360/n)*Math.PI/180;
   let y = 50 + ry*Math.sin(theta);
-  // 橫向時「你」（底部正中）整個往上提，確保自己的底牌落在行動列上方、看得到
-  if(landscapeShort && i===0) y = 74;
+  // 把「你」（底部正中）往上提，確保自己的底牌落在行動列上方、看得到
+  if(i===0){ if(landscapeShort) y=74; else if(!narrow) y=86; }
   return { x:50+rx*Math.cos(theta), y };
 }
 function cardHTML(card, faceUp, small){
