@@ -175,6 +175,7 @@
   #waitMsg .dot{animation:blink 1.2s infinite;}
   @keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}
   #controls{display:none; flex-direction:column; gap:10px; max-width:760px; margin:0 auto;}
+  #controls.acting{display:flex;}   /* 由 JS 切換 class（取代 inline display），讓橫式 CSS 能改成 grid 並排 */
   .raiserow{display:flex; align-items:center; gap:10px;}
   .raiserow input[type=range]{flex:1; accent-color:var(--gold); height:24px;}
   .raiserow .amt{min-width:92px; text-align:center; font-weight:800; color:var(--gold);
@@ -199,17 +200,17 @@
     header .btn{padding:8px 10px; font-size:13px; white-space:nowrap;}
     .statpill{padding:5px 9px; gap:8px;}
     #log{display:none;}
-    .seat{width:84px;}
-    .seat .who{min-width:74px; padding:4px 6px; border-radius:9px;}
-    .seat .name{font-size:11px;}
-    .seat .chips{font-size:10px;}
-    .seat .act{font-size:9px; padding:1px 5px;}
-    .seat .handname{font-size:9px;}
-    .seat .hole{height:42px; gap:3px;}
-    .seat .hole .card{width:28px; height:40px; padding:3px;}
-    .seat .hole .card .r{font-size:12px;}
-    .seat .hole .card .s{font-size:11px;}
-    .board .card{width:40px; height:56px;}
+    .seat{width:92px;}
+    .seat .who{min-width:80px; padding:5px 8px; border-radius:9px;}
+    .seat .name{font-size:13px;}
+    .seat .chips{font-size:12px;}
+    .seat .act{font-size:11px; padding:2px 6px;}
+    .seat .handname{font-size:11px;}
+    .seat .hole{height:46px; gap:3px;}
+    .seat .hole .card{width:31px; height:44px; padding:3px;}
+    .seat .hole .card .r{font-size:14px;}
+    .seat .hole .card .s{font-size:13px;}
+    .board .card{width:46px; height:64px;}
     .betchip{font-size:10px; padding:2px 7px;}
     .dealerbtn{width:20px; height:20px; font-size:10px;}
     /* === 牌桌自適應填滿(行動列變高時自動縮),確保主按鈕永遠在螢幕內 === */
@@ -220,20 +221,88 @@
     #controls{ gap:7px; }
     .raiserow input[type=range]{ height:30px; }
     .raiserow .amt{ min-width:72px; padding:6px; }
-    .mainrow .btn{ padding:13px; font-size:15px; }
-    .quick .btn{ padding:7px 9px; font-size:12px; }
+    .mainrow .btn{ padding:15px; font-size:18px; }
+    .quick .btn{ padding:9px 12px; font-size:14px; }
     /* === 教練卡精簡:只留 勝率+建議+頻率條;藏長文/賠率/標題/誠實小字 === */
     #coachBox{ padding:7px 11px; margin-bottom:6px; }
     #coachBox .cb-honest, #coachBox .cb-odds, #coachBox .cb-why, #coachBox .cb-mixhd{ display:none; }
     #coachBox .cb-top{ gap:7px; }
-    #coachBox .cb-eq{ font-size:20px; }
-    #coachBox .cb-line{ font-size:12.5px; margin-top:2px; }
-    #coachBox .cb-freqbar{ height:13px; margin:5px 0; }
+    #coachBox .cb-eq{ font-size:24px; }
+    #coachBox .cb-line{ font-size:15px; margin-top:3px; line-height:1.45; }
+    #coachBox .cb-exploit{ font-size:13.5px; }
+    #coachBox .cb-freqbar{ height:15px; margin:6px 0; }
     #coachBox .cb-legend{ margin-bottom:0; }
     /* === 頂列壓成一行 === */
     .logo{ white-space:nowrap; }
     header{ gap:5px; }
     header .btn{ padding:6px 8px; font-size:12px; }
+  }
+
+  /* ====== 手機橫向（主打體驗）：牌桌吃滿寬度，字級放大好讀，行動列壓低把高度讓給桌面 ====== */
+  @media (orientation:landscape) and (max-height:600px){
+    header{ padding:4px 12px; gap:10px; }
+    .logo{ font-size:15px; } .logo-suffix{ display:none; }
+    header .stat{ display:none; }
+    header .btn{ padding:7px 12px; font-size:13px; }
+    .statpill{ padding:5px 10px; gap:9px; }
+    #log{ display:none; }
+
+    #tableWrap{ padding:4px 8px; }
+    #table{ width:100%; height:100%; max-height:100%; border-width:10px; }
+    .center{ top:45%; gap:7px; }
+    .pot{ font-size:15px; padding:5px 13px; }
+
+    /* 座位／牌：橫向有寬度，字放大 */
+    .seat{ width:108px; }
+    .seat .who{ min-width:94px; padding:5px 9px; border-radius:10px; }
+    .seat .name{ font-size:13.5px; }
+    .seat .chips{ font-size:12px; }
+    .seat .act{ font-size:11px; padding:2px 7px; }
+    .seat .handname{ font-size:11px; }
+    .seat .hole{ height:46px; gap:4px; }
+    .seat .hole .card{ width:31px; height:44px; padding:3px; }
+    .seat .hole .card .r{ font-size:14px; } .seat .hole .card .s{ font-size:13px; }
+    .board .card{ width:44px; height:62px; }
+
+    /* 行動列：教練卡放「左欄」、滑桿/快捷/主按鈕疊在「右欄」——用橫向的寬度換掉垂直高度 */
+    #actionBar{ padding:6px 12px calc(6px + env(safe-area-inset-bottom)); }
+    #controls.acting{
+      display:grid; grid-template-columns:auto 1fr;
+      grid-template-areas:"coach raise" "coach quick" "coach main";
+      align-items:center; gap:6px 12px; max-width:none; margin:0;
+    }
+    #coachBox{ grid-area:coach; align-self:stretch; width:40vw; max-width:360px;
+      margin:0; padding:7px 11px; max-height:150px; overflow-y:auto; }
+    #coachBox .cb-honest{ display:none; }
+    #coachBox .cb-eq{ font-size:21px; }
+    #coachBox .cb-line{ font-size:13px; margin-top:2px; }
+    #coachBox .cb-odds{ margin:5px 0; font-size:12px; }
+    #coachBox .cb-exploit{ font-size:12.5px; }
+    #coachBox .cb-freqbar{ height:12px; margin:4px 0; }
+    .raiserow{ grid-area:raise; }
+    .quick{ grid-area:quick; flex-wrap:nowrap; }
+    .mainrow{ grid-area:main; }
+    .raiserow input[type=range]{ height:24px; }
+    .raiserow .amt{ min-width:80px; padding:5px; font-size:15px; }
+    .quick .btn{ flex:1; padding:7px 9px; font-size:13px; white-space:nowrap; }
+    .mainrow .btn{ padding:11px; font-size:16px; }
+
+    /* 橫向時：結算卡片左右拉寬、上下留呼吸；逐手回顧內捲 */
+    #banner{ max-width:78vw; max-height:90vh; }
+    #banner .reviewbox{ max-height:32vh; }
+  }
+
+  /* ====== 直向時提示轉橫向（手機才出現，轉橫即消失；點一下可關） ====== */
+  #rotateHint{ display:none; }
+  @media (orientation:portrait) and (max-width:820px){
+    #rotateHint{
+      display:inline-flex; align-items:center; gap:6px;
+      position:fixed; left:50%; top:56px; transform:translateX(-50%); z-index:60;
+      padding:9px 16px; border-radius:999px; cursor:pointer; white-space:nowrap;
+      background:rgba(0,164,198,.96); color:#04222a; font-weight:800; font-size:13.5px;
+      box-shadow:0 8px 24px rgba(0,0,0,.45); animation:rhpulse 2.2s ease-in-out infinite;
+    }
+    @keyframes rhpulse{ 50%{ transform:translateX(-50%) scale(1.045); } }
   }
 
   /* ---------- 開始設定 ---------- */
@@ -276,9 +345,20 @@
   /* ---------- 結果橫幅內的成績單 ---------- */
   #banner{max-height:82vh; overflow:auto;}
   @media(max-width:640px){
-    #banner{ position:fixed; max-height:92vh; width:92vw; max-width:92vw; padding:14px 15px; }
-    #banner .reviewbox{ max-height:38vh; overflow-y:auto; }   /* 只讓逐手回顧內捲，標題/結果/教學重點/下一手永遠可見 */
+    #banner{ position:fixed; max-height:92vh; width:94vw; max-width:94vw; padding:14px 16px; }
+    #banner .reviewbox{ max-height:36vh; overflow-y:auto; }   /* 只讓逐手回顧內捲，標題/結果/教學重點/下一手永遠可見 */
     #banner .next{ margin-top:10px; }
+    /* 字級放大:結算卡片在手機上要好讀 */
+    #banner h3{ font-size:20px; }
+    #banner .line{ font-size:15px; }
+    #banner .netres{ font-size:17px; }
+    #banner .sdrvtitle{ font-size:13px; }
+    #banner .sdname{ font-size:14px; } #banner .sdhand{ font-size:14px; }
+    #banner .sdcards .card.sm{ width:26px; height:37px; }
+    #banner .rvtitle{ font-size:13px; }
+    #banner .rv{ font-size:13px; }
+    #banner .rvwhy, #banner .rvshare, #banner .rv-honest, #banner .rvvillain{ font-size:12.5px; }
+    #banner .takeaway{ font-size:13px; }
   }
   #banner .netres{font-weight:800; font-size:15px; margin:8px 0 4px;}
   /* 攤牌一覽：把每位攤牌者的底牌+牌型放進卡片裡，免得被卡片擋住看不到桌面 */
@@ -551,8 +631,9 @@
 </head>
 <body>
 <div id="app">
+  <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v4 · 攤牌一覽</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v5 · 橫向大字</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -1634,7 +1715,7 @@ function setActionBar(){
   const human=players[0];
   const myTurn = !busy && currentIndex===0 && (stage==='preflop'||stage==='flop'||stage==='turn'||stage==='river') && !human.folded && !human.allIn && !human.sittingOut;
   el('waitMsg').style.display = myTurn?'none':'block';
-  el('controls').style.display = myTurn?'flex':'none';
+  el('controls').classList.toggle('acting', myTurn);
   if(stage==='done'){ el('waitMsg').innerHTML=''; }
   else if(!myTurn){ el('waitMsg').innerHTML='輪到對手行動<span class="dot">…</span>'; }
   if(!myTurn){ const cb=el('coachBox'); if(cb){cb.style.display='none'; cb.innerHTML='';} return; }
