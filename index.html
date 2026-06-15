@@ -542,6 +542,8 @@
   /* 剝削提示:掛在 GTO 頻率條下方,藍色系與金色 GTO 區隔,上方細虛線分層 */
   #coachBox .cb-exploit{font-size:12.5px; color:#aec2ff; line-height:1.55; margin-top:7px;
     padding-top:7px; border-top:1px dashed rgba(174,194,255,.28);}
+  #coachBox .cb-selfleak{font-size:12px; color:#ffcf8a; line-height:1.5; margin-top:6px;
+    padding-top:6px; border-top:1px dashed rgba(255,207,138,.28);}   /* 反向鏡子(琥珀警示) */
   #coachBox .cb-draw .cb-hit{font-style:normal; color:#7CE0A3; font-weight:700;}   /* 2/4 命中率小字(綠) */
   #banner .rvvillain{font-size:11px; color:#aec2ff; line-height:1.5; margin-top:2px; opacity:.92;}
   @media(max-width:640px){ #coachBox .cb-eq{font-size:20px;} #coachBox .cb-line,#coachBox .cb-made{font-size:12.5px;} #coachBox .cb-odds{display:none;} #coachBox .cb-exploit{font-size:11.5px; margin-top:5px; padding-top:5px;} }
@@ -633,7 +635,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v6 · 橫向看得到牌</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v7 · 對手會讀你</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -820,6 +822,18 @@ function resetStats(){ stats={hands:0,vpip:0,pfr:0,bb:0,decisions:0,scoreSum:0,c
   leaks:{chase:{c:0,cost:0},overfold:{c:0,cost:0},missValue:{c:0,cost:0},foldGood:{c:0,cost:0},spew:{c:0,cost:0}},
   strengths:{good:0}}; }
 
+/* 對手讀人模型 humanReads：只記「人類的公開動作」（不看底牌），讓 bot 會針對你調整 + 教練做反向鏡子。
+   每場 newGame 清空，避免換桌污染。全唯讀統計，不碰任何金錢/狀態機。 */
+let humanReads=null;
+function resetReads(){ humanReads={ hands:0, vpip:0, pfr:0, foldVsBet:{n:0,k:0}, agg:0, call:0, check:0 }; }
+function noteHumanAction(kind, toCall){    // 在三個行動入口的 isHuman 分支呼叫
+  if(!humanReads) return;
+  if(toCall>0){ humanReads.foldVsBet.n++; if(kind==='fold') humanReads.foldVsBet.k++; }  // 面對下注/加注：有沒有蓋
+  if(kind==='raise') humanReads.agg++;
+  else if(kind==='call') humanReads.call++;
+  else if(kind==='check') humanReads.check++;
+}
+
 const el = id => document.getElementById(id);
 function totalPot(){ return players.reduce((s,p)=>s+p.committed,0); }
 function centerPot(){ return players.reduce((s,p)=>s+p.committed-p.streetBet,0); }
@@ -856,7 +870,7 @@ function newGame(){
   const names = shuffle([...BOT_NAMES]).slice(0, oppN);
   for(let i=0;i<oppN;i++) players.push(mkPlayer(names[i], false));
   dealerIndex = 0; handNo = 0;
-  logs.length=0; resetStats(); updateStatsPill();
+  logs.length=0; resetStats(); resetReads(); updateStatsPill();
   el('blindInfo').textContent = `${smallBlind} / ${bigBlind}`;
   startNewHand();
 }
@@ -870,6 +884,7 @@ function mkPlayer(name, isHuman){
     name, isHuman, chips:startStack, hole:[], streetBet:0, committed:0,
     folded:false, allIn:false, hasActed:false, sittingOut:false, lastAction:'', score:null, isWinner:false,
     personaLabel: P?P.label:'', tilt:0, _chipStart:startStack,
+    mem:{aggrStreet:null, story:null, trapStreet:null},   // 手內記憶：連續開火/埋伏收網用，每手重置
     pers: P ? { skill, aggression:P.aggro*r(), bluff:P.bluff*r(), station:P.station, foldToAgg:P.foldToAgg,
                 trap:P.trap, size:P.size, tempo:P.tempo, tiltProne:P.tiltProne, chat:P.chat }
             : { skill, aggression:0.85+Math.random()*0.5, bluff:0.08, station:0.3, foldToAgg:0.4, trap:0.15, size:'std', tempo:'normal', tiltProne:0.3, chat:0.2 }
@@ -890,7 +905,8 @@ function startNewHand(){
 
   players.forEach(p=>{ p.hole=[]; p.streetBet=0; p.committed=0; p.allIn=false; p.hasActed=false;
     p.lastAction=''; p.score=null; p.isWinner=false; p.winAmt=0; p.bestCards=null; p.folded=p.sittingOut;
-    p._chipStart=p.chips; p.tilt=(p.tilt||0)*0.55; });
+    p._chipStart=p.chips; p.tilt=(p.tilt||0)*0.55;
+    if(p.mem){ p.mem.aggrStreet=null; p.mem.story=null; p.mem.trapStreet=null; } });   // 手內記憶歸零，避免污染下一手
   community=[]; deck=shuffle(freshDeck()); betToMatch=0; lastRaiseSize=bigBlind; stage='preflop'; handNo++;
   el('handNo').textContent = handNo;
 
@@ -949,13 +965,13 @@ function dealBoard(n){ for(let i=0;i<n;i++) community.push(deck.pop()); }
 /* ---------- 行動：人類 / 共用 ---------- */
 const BET_STAGES=['preflop','flop','turn','river'];
 function doFold(p){
-  if(p.isHuman && BET_STAGES.includes(stage)) recordHuman(p,'fold');
+  if(p.isHuman && BET_STAGES.includes(stage)){ recordHuman(p,'fold'); noteHumanAction('fold', betToMatch-p.streetBet); }
   p.folded=true; p.hasActed=true; p.lastAction='蓋牌';
   const _i=players.indexOf(p); fxMuck(_i); fxBubble(_i);
   log(`${tag(p)} 蓋牌`); afterAction(); }
 function doCheckCall(p){
   const toCall = betToMatch - p.streetBet;
-  if(p.isHuman && BET_STAGES.includes(stage)) recordHuman(p, toCall>0?'call':'check');
+  if(p.isHuman && BET_STAGES.includes(stage)){ const k=toCall>0?'call':'check'; recordHuman(p, k); noteHumanAction(k, toCall); }
   if(toCall<=0){ p.lastAction='過牌'; log(`${tag(p)} 過牌`); }
   else { const pay=Math.min(toCall,p.chips); const _b=p.committed; commit(p,pay);
     _pendingBet={idx:players.indexOf(p),amt:p.committed-_b};
@@ -964,7 +980,7 @@ function doCheckCall(p){
   p.hasActed=true; fxBubble(players.indexOf(p)); afterAction();
 }
 function doRaiseTo(p, target){
-  if(p.isHuman && BET_STAGES.includes(stage)) recordHuman(p,'raise');
+  if(p.isHuman && BET_STAGES.includes(stage)){ recordHuman(p,'raise'); noteHumanAction('raise', betToMatch-p.streetBet); }
   const prev=betToMatch;
   target=Math.min(target, p.streetBet+p.chips);
   const _b=p.committed; commit(p, target-p.streetBet);
@@ -972,6 +988,7 @@ function doRaiseTo(p, target){
   if(target>prev){
     lastRaiseSize=Math.max(bigBlind, target-prev); betToMatch=target;
     players.forEach(x=>{ if(x!==p&&!x.folded&&!x.allIn&&!x.sittingOut) x.hasActed=false; });
+    if(p.mem) p.mem.aggrStreet=stage;   // 純標記：本街是我主動開火 → 下一街可能續攻(barrel)，不碰金額/狀態機
   }
   p.hasActed=true;
   p.lastAction = p.allIn ? 'All-in '+target : (prev>0 ? '加注→'+target : '下注 '+target);
@@ -1168,9 +1185,10 @@ function botSize(p, baseFrac){
 }
 function botThink(p, diff){
   const tm={fast:0.6, normal:1, slow:1.45}[p.pers.tempo]||1;
-  let t=(350 + diff*1950)*tm;
-  if(Math.random()<0.12) t+=600+Math.random()*900;   // 偶爾 tank / 搖
-  return Math.max(250, Math.round(t*(0.8+Math.random()*0.4)));
+  const tilt=p.tilt||0;
+  let t=(350 + diff*1950)*tm*(1-0.25*tilt);                       // 上頭的人整體手變快
+  if(Math.random() < 0.06+diff*0.30) t+=(500+Math.random()*1100)*(0.6+diff);   // 越難的決策越可能 tank（思考時間變可被讀的 tell）
+  return Math.max(220, Math.round(t*(0.8+Math.random()*0.4)));
 }
 function botCommit(p, diff, fn){    // 等「思考時間」後才真正行動；守門避免狀態變了還亂動
   const hn=handNo, idx=players.indexOf(p);
@@ -1218,17 +1236,49 @@ function botDecide(p){
   const callAct=()=>botCommit(p,diff,()=>doCheckCall(p));
   const foldAct=()=>botCommit(p,diff,()=>doFold(p));
 
+  // --- 位置：越靠後（越接近莊家最後行動）越敢偷雞/薄價值 ---
+  let posFactor=0.5;
+  { const liveOrder=[]; for(let k=1;k<=players.length;k++){ const j=(dealerIndex+k)%players.length; const q=players[j]; if(!q.folded&&!q.sittingOut) liveOrder.push(j); }
+    const myOrder=liveOrder.indexOf(idx);
+    if(liveOrder.length>1 && myOrder>=0) posFactor=myOrder/(liveOrder.length-1); }   // 0=最早行動 … 1=莊家(最後)
+
+  // --- 讀人：依「人類的公開傾向」動態調整偷雞/價值（樣本不足 conf≈0 → 完全退回原本常數）---
+  const hr=humanReads, conf=hr?Math.min(1,hr.hands/12):0;
+  const fB=hr?hr.foldVsBet:null;
+  const obsFold=(fB&&fB.n>=4)?fB.k/fB.n:null;               // 人類面對下注的棄牌率
+  const totAct=hr?(hr.agg+hr.call):0, humanAggro=(totAct>=6)?hr.agg/totAct:null;
+  let bluffMul=1, valueBonus=0;
+  if(conf>0 && obsFold!==null){
+    if(obsFold>0.55)      bluffMul *= 1+(obsFold-0.5)*1.2*conf;     // 你太愛蓋 → 對你多偷多唬
+    else if(obsFold<0.32) bluffMul *= 1-(0.32-obsFold)*1.0*conf;    // 你幾乎不蓋(跟注站) → 少唬你
+  }
+  if(conf>0 && obsFold!==null && obsFold<0.40 && humanAggro!==null && humanAggro<0.30){
+    valueBonus += 0.12*conf; bluffMul *= 1-0.35*conf;              // 你愛跟少加 → 對你價值下大、少唬
+  }
+  bluffMul=Math.max(0.3, Math.min(1.7, bluffMul));
+
+  // --- 埋伏收網：上一街慢打了強牌(story='trap')，這街仍強 → 跳出來反加/價值下注收網 ---
+  if(p.mem && p.mem.story==='trap' && p.mem.trapStreet && BET_STAGES.indexOf(stage)>BET_STAGES.indexOf(p.mem.trapStreet)){
+    if(eqTrue>0.60 && canRaise){ p.mem.story=null; return raiseAct(toCall>0?0.85:0.70); }
+    if(eqTrue<=0.50) p.mem.story=null;                            // 牌變弱了，放棄劇本，照常打
+  }
+
   if(rec==='raise' && canRaise){
-    if(Math.random() < P.trap*0.8 && eqTrue>0.6) return callAct();         // 慢打埋伏
-    if(skill>0.45 || Math.random()<0.75) return raiseAct(0.6);
+    if(Math.random() < P.trap*0.8 && eqTrue>0.6){ if(p.mem){p.mem.story='trap'; p.mem.trapStreet=stage;} return callAct(); }   // 慢打埋伏(記下劇本)
+    if(skill>0.45 || Math.random()<0.75) return raiseAct(0.6+valueBonus);
     return callAct();                                                       // 弱手有時錯失價值
   }
   if(rec==='check'){
-    if(canRaise && Math.random() < bluff*(0.7+aggro*0.3)) return raiseAct(0.5);   // 偷雞
+    // 連續開火 barrel：上一街是我主動開火、這街沒人下注 → 常會續攻（像同一個人在打同一手）
+    if(canRaise && toCall<=0 && p.mem && p.mem.aggrStreet && BET_STAGES.indexOf(stage)>BET_STAGES.indexOf(p.mem.aggrStreet)){
+      const barrel=(eqTrue>0.5?0.70:0.34)*(skill>0.5?1:0.6)*(1+tilt*0.3)*bluffMul;
+      if(Math.random()<barrel) return raiseAct(eqTrue>0.55?(0.6+valueBonus):0.5);
+    }
+    if(canRaise && Math.random() < bluff*(0.7+aggro*0.3)*(0.7+posFactor*0.6)*bluffMul) return raiseAct(0.5);   // 偷雞(位置+讀人)
     return callAct();
   }
   if(rec==='call'){
-    if(canRaise && Math.random() < 0.12*aggro + (skill>0.7?0.1:0)) return raiseAct(0.6);   // 施壓
+    if(canRaise && Math.random() < 0.12*aggro*(0.6+posFactor*0.8) + (skill>0.7?0.1:0)) return raiseAct(0.6+valueBonus);   // 施壓(位置)
     return callAct();
   }
   // rec==='fold'
@@ -1236,7 +1286,7 @@ function botDecide(p){
   const betBig = toCall > pot*0.6;
   if(!betBig && Math.random() < station*0.7) return callAct();                              // 跟注站：小注照跟
   if(betBig && Math.random() < station*0.4*(1-foldToAgg)) return callAct();                 // 大注：站也部分被嚇退
-  if(canRaise && toCall < pot*0.4 && Math.random() < bluff*0.9) return raiseAct(0.6);       // 亂噴詐唬
+  if(canRaise && toCall < pot*0.4 && Math.random() < bluff*0.9*bluffMul) return raiseAct(0.6);   // 亂噴詐唬(讀人)
   return foldAct();
 }
 
@@ -1304,6 +1354,7 @@ function finalizeHandStats(){
   stats.hands++; stats.bb += delta/bigBlind;
   if(handFlags.vpip) stats.vpip++;
   if(handFlags.pfr) stats.pfr++;
+  if(humanReads){ humanReads.hands++; if(handFlags.vpip) humanReads.vpip++; if(handFlags.pfr) humanReads.pfr++; }
   stats.curve.push(+stats.bb.toFixed(2));
   updateStatsPill();
   const me=players[0];
@@ -1426,15 +1477,30 @@ function readVillain(){
   }
   return null;   // 多人混戰、無單一對象 → 不給(針對性建議不可靠)
 }
-function exploitTip(v, mix, toCall){
+function exploitTip(v, mix, toCall, stage){
   if(!v||!v.pers) return '';
   const P=v.pers, persona=v.personaLabel, tilt=v.tilt||0;
   if(tilt>0.45)        return `對手「${persona}」剛上頭、會亂打 → 手上有真牌別手軟，尺寸開大，他很可能氣到照付。`;
   if(P.station>=0.6)   return `對手「${persona}」只敢跟不敢加 → 別唬他（唬不動），有真牌就加大收價值，他會一路付錢。`;
-  if(P.foldToAgg>=0.6) return `對手「${persona}」一被加注就怕 → 這裡多一個偷雞的理由，下注他很可能直接放棄。`;
+  if(P.foldToAgg>=0.6) return `對手「${persona}」一被加注就怕 → ${stage==='preflop'?'翻前就能多偷他的盲注':'下注他很可能直接放棄'}，多一個偷雞的理由。`;
   if(P.trap>=0.5 && toCall>0) return `對手「${persona}」愛慢打埋伏 → 他這裡突然加注要小心，別輕易超池跟／反加。`;
   if(P.bluff>=0.2||P.aggression>=1.5) return `對手「${persona}」愛開火亂唬 → 有牌別急著反加，留著抓他詐唬（多 call 一點）。`;
-  return '';   // 中性型(緊兇/老實)無明顯破綻,不強出提示,手機保持精簡
+  // 中性型（緊兇/老實）也給一句有教學量的 read —— 避免教練卡對最常見的對手沉默
+  if(P.aggression>=1.0) return `對手「${persona}」偏緊也偏兇 → 他主動下注通常真的有貨，沒到中對以上別輕易黏。`;
+  return `對手「${persona}」打得直白 → 他怎麼下你就怎麼讀，照牌力跟、別自己嚇自己。`;
+}
+/* 反向鏡子：讀 humanReads，把「你自己被讀到的習慣」攤給你看（樣本足夠才講） */
+function selfLeakTip(){
+  const hr=humanReads; if(!hr || hr.hands<6) return '';
+  const fB=hr.foldVsBet;
+  if(fB.n>=6){ const f=Math.round(fB.k/fB.n*100);
+    if(f>=62) return `你太常一被下注就蓋（${f}%）→ 這桌已經有人在偷你；偶爾跟或反加，讓他不敢亂下。`;
+    if(f<=20) return `你幾乎不蓋牌（${f}%）→ 對手會少唬你、改用大牌價值下大；沒牌時該放就放。`;
+  }
+  if(hr.hands>=8){ const vp=Math.round(hr.vpip/hr.hands*100);
+    if(vp>=58) return `你進池太頻繁（${vp}%）→ 牌偏弱容易陷被動；起手牌再挑一點。`;
+  }
+  return '';
 }
 function renderCoach(){
   const box=el('coachBox'); if(!box) return;
@@ -1462,12 +1528,14 @@ function renderCoach(){
   const mix = gtoMix(eq, potOdds, toCall, pot, canRaise, players[0].chips, oppLive, draw.outs, stage);
   lastMix = mix;
   box.style.display='block';
-  const exTip = exploitTip(readVillain(), mix, toCall);   // 剝削提示(對手是X→你該Y),GTO 之上的「天花板」
+  const exTip = exploitTip(readVillain(), mix, toCall, stage);   // 剝削提示(對手是X→你該Y),GTO 之上的「天花板」
+  const selfTip = selfLeakTip();                                 // 反向鏡子(你被讀到的習慣)
   box.innerHTML=`<div class="cb-honest">⚖️ GTO 風格近似，非專業解牌器</div>`+
     `<div class="cb-top">${top}</div>${odds}`+
     `<div class="cb-line">${coachAdvice({action:mix.primary,shove:mix.shove},eqPct,toCall,pot,draw)}</div>`+
     mixBarHTML(mix)+
-    (exTip?`<div class="cb-exploit">🎯 ${exTip}</div>`:'');
+    (exTip?`<div class="cb-exploit">🎯 ${exTip}</div>`:'')+
+    (selfTip?`<div class="cb-selfleak">🪞 ${selfTip}</div>`:'');
 }
 function coachToast(score,tip){
   if(!coachOn) return; const bar=el('actionBar'); if(!bar) return;
