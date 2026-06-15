@@ -36,6 +36,7 @@
   }
   header .logo{font-weight:800; letter-spacing:1px; font-size:17px;}
   header .logo b{color:var(--gold);}
+  header .ver{font-size:10.5px; font-weight:600; letter-spacing:0; color:#7CE0A3; background:rgba(124,224,163,.12); border:1px solid rgba(124,224,163,.35); padding:1px 6px; border-radius:999px; margin-left:8px; vertical-align:middle; white-space:nowrap;}
   header .stat{font-size:13px; color:var(--muted);}
   header .stat b{color:var(--txt);}
   header .spacer{flex:1;}
@@ -539,7 +540,7 @@
 <body>
 <div id="app">
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v3 · 剝削+2/4</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -1322,7 +1323,15 @@ function coachAdvice(dec,eqPct,toCall,pot,draw){
 /* 剝削式教學:讀當前單一對手的人格/漏洞 → 一句「該怎麼修理他」（純唯讀，不碰算錢/評分） */
 function readVillain(){
   const live=players.filter(x=>!x.isHuman&&!x.folded&&!x.sittingOut);
-  return live.length===1 ? live[0] : null;   // 只在單一對手時給,多人桌回 null 自動隱藏
+  if(live.length===1) return live[0];                 // 單挑:直接鎖定唯一對手
+  // 多人桌:若你正面對「單獨一個下注/加注者」,就鎖定他(針對該玩家人格的建議仍成立)
+  const toCall = betToMatch - players[0].streetBet;
+  const minVol = (community.length===0) ? bigBlind : 0;   // 翻牌前要排除「只是貼大盲」,得是真的加注
+  if(toCall>0 && betToMatch>minVol){
+    const bettors = live.filter(x=> x.streetBet===betToMatch);
+    if(bettors.length===1) return bettors[0];
+  }
+  return null;   // 多人混戰、無單一對象 → 不給(針對性建議不可靠)
 }
 function exploitTip(v, mix, toCall){
   if(!v||!v.pers) return '';
@@ -1762,6 +1771,9 @@ document.addEventListener('keydown',e=>{
 /* ---------- PWA：離線快取 + 安裝到手機 ---------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=> navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  // 換上新管家(SW)時自動重載一次,讓新版畫面立刻生效;refreshing 旗標防止無限重載
+  let _swRefreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_swRefreshing) return; _swRefreshing=true; location.reload(); });
 }
 let deferredPrompt=null;
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
