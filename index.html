@@ -281,6 +281,18 @@
     #banner .next{ margin-top:10px; }
   }
   #banner .netres{font-weight:800; font-size:15px; margin:8px 0 4px;}
+  /* 攤牌一覽：把每位攤牌者的底牌+牌型放進卡片裡，免得被卡片擋住看不到桌面 */
+  #banner .sdreveal{margin:10px 0 4px; text-align:left; background:rgba(0,0,0,.32); border:1px solid rgba(255,216,77,.22); border-radius:10px; padding:8px 10px;}
+  #banner .sdrvtitle{font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:700;}
+  #banner .sdrow{display:flex; align-items:center; gap:8px; padding:3px 0;}
+  #banner .sdrow+.sdrow{border-top:1px solid rgba(255,255,255,.06);}
+  #banner .sdname{flex:0 0 auto; min-width:50px; font-size:13px; font-weight:700; color:var(--txt);}
+  #banner .sdrow.win .sdname{color:var(--gold);}
+  #banner .sdcards{display:flex; gap:3px; flex:0 0 auto;}
+  #banner .sdcards .card.sm{width:24px; height:34px; padding:2px 3px; border-radius:4px;}
+  #banner .sdcards .card.sm .r{font-size:11px;} #banner .sdcards .card.sm .s{font-size:11px;}
+  #banner .sdhand{flex:1 1 auto; text-align:right; font-size:12.5px; color:#cdd6e6;}
+  #banner .sdrow.win .sdhand{color:#7CE0A3; font-weight:700;}
   #banner .reviewbox{margin-top:8px; text-align:left; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.08);
     border-radius:10px; padding:8px 10px;}
   #banner .rvtitle{font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:700;}
@@ -540,7 +552,7 @@
 <body>
 <div id="app">
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v3 · 剝削+2/4</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v4 · 攤牌一覽</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -940,7 +952,7 @@ function showdown(){
   render();
   players.filter(p=>p.isWinner).forEach(coinBurstToSeat);
   players.filter(p=>p.isWinner&&!p.isHuman).forEach(w=>botChat(players.indexOf(w),'win'));
-  showBanner('🃏 攤牌結果', resultLines, finalizeHandStats());
+  showBanner('🃏 攤牌結果', resultLines, finalizeHandStats(), showdownRevealHTML(contenders));
 }
 function awardUncontested(winner){
   clearBubbles();
@@ -1659,7 +1671,18 @@ function setActionBar(){
 }
 
 /* ---------- 結果橫幅 ---------- */
-function showBanner(title, lines, fin){
+function showdownRevealHTML(contenders){   // 攤牌一覽：依牌力大→小排，贏家標 🏆
+  if(!contenders || contenders.length<2) return '';
+  const sorted=[...contenders].sort((a,b)=>cmpScore(b.score,a.score));
+  const rows=sorted.map(p=>
+    `<div class="sdrow${p.isWinner?' win':''}">`+
+      `<span class="sdname">${p.isHuman?'你':p.name}${p.isWinner?' 🏆':''}</span>`+
+      `<span class="sdcards">${p.hole.map(c=>cardHTML(c,true,true)).join('')}</span>`+
+      `<span class="sdhand">${handName(p.score)}</span>`+
+    `</div>`).join('');
+  return `<div class="sdreveal"><div class="sdrvtitle">🂠 攤牌一覽（誰拿什麼）</div>${rows}</div>`;
+}
+function showBanner(title, lines, fin, revealHTML){
   const b=el('banner');
   let reviewHTML='';
   if(fin){
@@ -1695,7 +1718,7 @@ function showBanner(title, lines, fin){
       reviewHTML+=`<div class="takeaway"><span class="tk">💡 本手教學重點</span>${msg}</div>`;
     }
   }
-  b.innerHTML=`<h3>${title}</h3>${lines.map(l=>`<div class="line">${l}</div>`).join('')}${reviewHTML}
+  b.innerHTML=`<h3>${title}</h3>${lines.map(l=>`<div class="line">${l}</div>`).join('')}${revealHTML||''}${reviewHTML}
     <button class="btn next" id="nextHandBtn">下一手 →</button>`;
   b.style.display='block';
   el('nextHandBtn').onclick=()=>{ el('nextHandBtn').disabled=true; startNewHand(); };
