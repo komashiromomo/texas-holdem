@@ -692,7 +692,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v14 · 桌機版面</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v15 · 角色個性</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -932,13 +932,13 @@ function openEqDetail(){
 const BOT_NAMES=['阿傑','小美','老王','Money哥','沉默羊','機器K','幸運仔','鯊魚姐','阿土','教授','小辣椒','黑哥','阿珍','老李'];
 // 可辨識人格原型（只影響 bot 行為，不碰教練最佳解尺）
 const PERSONAS = {
-  rock:    {label:'石頭',   aggro:0.70, bluff:0.03, station:0.12, foldToAgg:0.70, trap:0.15, size:'std',  tempo:'slow',   tiltProne:0.20, chat:0.10},
-  station: {label:'跟注站', aggro:0.55, bluff:0.04, station:0.85, foldToAgg:0.15, trap:0.05, size:'min',  tempo:'fast',   tiltProne:0.50, chat:0.50},
-  tag:     {label:'緊兇',   aggro:1.15, bluff:0.13, station:0.18, foldToAgg:0.45, trap:0.22, size:'std',  tempo:'normal', tiltProne:0.25, chat:0.20},
-  lag:     {label:'瘋子',   aggro:1.70, bluff:0.28, station:0.40, foldToAgg:0.25, trap:0.10, size:'big',  tempo:'fast',   tiltProne:0.60, chat:0.60},
-  trapper: {label:'狡猾',   aggro:1.00, bluff:0.15, station:0.45, foldToAgg:0.35, trap:0.55, size:'std',  tempo:'slow',   tiltProne:0.30, chat:0.30},
-  gambler: {label:'賭徒',   aggro:1.50, bluff:0.22, station:0.60, foldToAgg:0.20, trap:0.08, size:'wild', tempo:'fast',   tiltProne:0.80, chat:0.55},
-  abc:     {label:'老實',   aggro:0.95, bluff:0.06, station:0.32, foldToAgg:0.40, trap:0.10, size:'std',  tempo:'normal', tiltProne:0.30, chat:0.22},
+  rock:    {label:'石頭',   vpip:0.16, aggro:0.70, bluff:0.03, station:0.12, foldToAgg:0.70, trap:0.15, size:'std',  tempo:'slow',   tiltProne:0.20, chat:0.10},
+  station: {label:'跟注站', vpip:0.58, aggro:0.55, bluff:0.04, station:0.85, foldToAgg:0.15, trap:0.05, size:'min',  tempo:'fast',   tiltProne:0.50, chat:0.50},
+  tag:     {label:'緊兇',   vpip:0.22, aggro:1.15, bluff:0.13, station:0.18, foldToAgg:0.45, trap:0.22, size:'std',  tempo:'normal', tiltProne:0.25, chat:0.20},
+  lag:     {label:'瘋子',   vpip:0.50, aggro:1.70, bluff:0.28, station:0.40, foldToAgg:0.25, trap:0.10, size:'big',  tempo:'fast',   tiltProne:0.60, chat:0.60},
+  trapper: {label:'狡猾',   vpip:0.34, aggro:1.00, bluff:0.15, station:0.45, foldToAgg:0.35, trap:0.55, size:'std',  tempo:'slow',   tiltProne:0.30, chat:0.30},
+  gambler: {label:'賭徒',   vpip:0.66, aggro:1.50, bluff:0.22, station:0.60, foldToAgg:0.20, trap:0.08, size:'wild', tempo:'fast',   tiltProne:0.80, chat:0.55},
+  abc:     {label:'老實',   vpip:0.30, aggro:0.95, bluff:0.06, station:0.32, foldToAgg:0.40, trap:0.10, size:'std',  tempo:'normal', tiltProne:0.30, chat:0.22},
 };
 const BOT_PERSONA = {'鯊魚姐':'lag','沉默羊':'rock','機器K':'tag','Money哥':'station','幸運仔':'gambler','老王':'trapper','阿傑':'abc','小美':'tag',
   '阿土':'rock','教授':'tag','小辣椒':'lag','黑哥':'gambler','阿珍':'abc','老李':'trapper'};
@@ -1019,9 +1019,9 @@ function mkPlayer(name, isHuman){
     folded:false, allIn:false, hasActed:false, sittingOut:false, lastAction:'', score:null, isWinner:false,
     personaLabel: P?P.label:'', tilt:0, _chipStart:startStack,
     mem:{aggrStreet:null, story:null, trapStreet:null},   // 手內記憶：連續開火/埋伏收網用，每手重置
-    pers: P ? { skill, aggression:P.aggro*r(), bluff:P.bluff*r(), station:P.station, foldToAgg:P.foldToAgg,
+    pers: P ? { skill, vpip:P.vpip, aggression:P.aggro*r(), bluff:P.bluff*r(), station:P.station, foldToAgg:P.foldToAgg,
                 trap:P.trap, size:P.size, tempo:P.tempo, tiltProne:P.tiltProne, chat:P.chat }
-            : { skill, aggression:0.85+Math.random()*0.5, bluff:0.08, station:0.3, foldToAgg:0.4, trap:0.15, size:'std', tempo:'normal', tiltProne:0.3, chat:0.2 }
+            : { skill, vpip:0.30, aggression:0.85+Math.random()*0.5, bluff:0.08, station:0.3, foldToAgg:0.4, trap:0.15, size:'std', tempo:'normal', tiltProne:0.3, chat:0.2 }
   };
 }
 
@@ -1374,6 +1374,16 @@ function botDecide(p){
   const raiseAct=(frac)=>{ const t=botSize(p,frac); botCommit(p,diff,()=>{ const allIn=(t>=p.streetBet+p.chips); botChat(idx, allIn?'allin':'raise'); doRaiseTo(p,t); }); };
   const callAct=()=>botCommit(p,diff,()=>doCheckCall(p));
   const foldAct=()=>botCommit(p,diff,()=>doFold(p));
+
+  // --- 翻牌前範圍鬆緊：依人格 vpip 設「進場門檻」，太弱的牌「緊」型直接不玩 ---
+  //（讓緊兇/石頭真的緊，跟注站/賭徒才會用 Q5o 這種弱牌進場；只擋「要花錢進場」的弱牌）
+  if(stage==='preflop' && community.length===0 && toCall>0){
+    const relPF = eqTrue*(oppLive+1);                       // 1.0=這桌平均牌力
+    const vp = (P.vpip!=null) ? P.vpip : 0.30;
+    let bar = 1.68 - vp*1.55;                               // 緊(石頭vp0.16→bar1.43→VPIP~18%) … 鬆(賭徒vp0.66→bar0.66→~86%)
+    bar = bar*(1 - tilt*0.25) + (toCall>pot?0.18:0);        // 上頭打更鬆；面對大注更嚴
+    if(relPF < bar && Math.random()<0.94) return foldAct();   // 94% 照範圍丟弱牌（留 6% 隨機，不要 100% 機械）
+  }
 
   // --- 位置：越靠後（越接近莊家最後行動）越敢偷雞/薄價值 ---
   let posFactor=0.5;
