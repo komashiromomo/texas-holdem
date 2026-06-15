@@ -420,6 +420,21 @@
   #eqBody .eq-note{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);}
   #eqBody .eq-odds{background:rgba(0,164,198,.1); border:1px solid rgba(0,164,198,.3);}
   #eqBody .eq-draw{background:rgba(124,224,163,.1); border:1px solid rgba(124,224,163,.3); color:#bfe8c9;}
+  #eqBody .eq-sub{font-size:11.5px; color:var(--muted);}
+  #eqBody .eq-act{margin-top:10px; border-radius:10px; padding:10px 12px; background:rgba(232,196,106,.08); border:1px solid rgba(232,196,106,.3);}
+  #eqBody .eq-act>b{font-size:13.5px;}
+  #eqBody .eq-act .cb-mixhd{font-size:11.5px; color:var(--muted); margin:8px 0 5px;}
+  #eqBody .eq-act .cb-freqbar{display:flex; height:15px; border-radius:8px; overflow:hidden; margin:5px 0;}
+  #eqBody .eq-act .cb-legend{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; margin-bottom:2px;}
+  #eqBody .eq-actwhy{font-size:13px; line-height:1.6; margin-top:8px;}
+  #eqBody .eq-actrule{font-size:12.5px; line-height:1.6; margin-top:8px; color:#ffcf8a; border-top:1px dashed rgba(255,207,138,.3); padding-top:7px;}
+  /* 彈窗內頻率條的顏色（.cb-seg/.cb-leg 原本只在 #coachBox 上色，這裡補上）*/
+  #eqBody .eq-act .cb-seg{height:100%;}
+  #eqBody .eq-act .cb-seg.raise{background:var(--gold);} #eqBody .eq-act .cb-seg.allin{background:var(--red);}
+  #eqBody .eq-act .cb-seg.call{background:#aec2ff;} #eqBody .eq-act .cb-seg.check{background:#5b6b86;} #eqBody .eq-act .cb-seg.fold{background:#ff9aa6;}
+  #eqBody .eq-act .cb-leg b{font-size:12.5px;}
+  #eqBody .eq-act .cb-leg.raise b{color:var(--gold);} #eqBody .eq-act .cb-leg.allin b{color:#ff9aa6;}
+  #eqBody .eq-act .cb-leg.call b{color:#aec2ff;} #eqBody .eq-act .cb-leg.check b{color:#eaf2ff;} #eqBody .eq-act .cb-leg.fold b{color:#ff9aa6;}
   .stats-card{background:rgba(12,20,36,.97); border:1px solid rgba(255,255,255,.12); border-radius:18px;
     padding:22px; width:min(420px,94vw); box-shadow:0 30px 80px rgba(0,0,0,.6); max-height:92vh; overflow-y:auto;}
   .stats-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
@@ -670,7 +685,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v12 · 計算校正</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v13 · 勝率教學</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -880,8 +895,27 @@ function openEqDetail(){
     html+=`<div class="eq-odds">現在沒人下注、可以免費看牌：勝率高就主動下注收錢，勝率低就過牌、免費看下一張公共牌。</div>`;
   }
   if(draw.outs>0 && draw.draws.length && (community.length===3||community.length===4)){
-    const hit=Math.min(95, draw.outs*(community.length===3?4:2));
-    html+=`<div class="eq-draw">你還在聽 <b>${draw.draws.join('、')}</b>：牌堆裡有 ${draw.outs} 張能讓你升級，下一張公共牌約 <b>${hit}%</b> 會補到。</div>`;
+    const onFlop=community.length===3;
+    const hit=Math.min(95, draw.outs*(onFlop?4:2));
+    const when=onFlop?'到河牌前（還有 2 張）':'下一張（河牌）';
+    html+=`<div class="eq-draw">你還在聽 <b>${draw.draws.join('、')}</b>：牌堆裡有 ${draw.outs} 張能讓你升級，${when}約 <b>${hit}%</b> 會補到。<br><span class="eq-sub">（口訣：翻牌後算「到河牌」聽牌數×4，轉牌後算「最後一張」×2）</span></div>`;
+  }
+  // 🎲 從勝率 → 該怎麼打：把 贏/平/輸 連到 蓋牌/跟注/加注/全押 的關係攤給玩家看
+  {
+    const mixEq=bd.eqPct/100, canRaise=(p.streetBet+p.chips)>betToMatch;
+    const mix=gtoMix(mixEq, toCall>0?toCall/(pot+toCall):0, toCall, pot, canRaise, p.chips, oppLive, draw.outs, stage);
+    const rfam=mix.raise+mix.allin;
+    let why;
+    if(toCall>0){
+      if(mix.primary==='fold')      why=`你的勝率 <b>${bd.eqPct}%</b> 追不上要付的 <b>${oddPct}%</b> 門票 → 主要該<b>蓋牌</b>（${mix.fold}%），硬跟長期虧。`;
+      else if(mix.primary==='call') why=`勝率 <b>${bd.eqPct}%</b> 付得起 <b>${oddPct}%</b> 門票、但沒大幅領先 → 主要<b>跟注</b>看牌（${mix.call}%）。`;
+      else                          why=`勝率 <b>${bd.eqPct}%</b> 明顯超過 <b>${oddPct}%</b> 門票、你在領先 → 主要<b>${mix.shove?'全押':'加注'}</b>收價值（${rfam}%）。`;
+    } else {
+      if(mix.primary==='raise')     why=`你比這桌平均強不少 → 主要<b>主動下注</b>（${rfam}%）逼對手付錢才看下一張。`;
+      else                          why=`沒大幅領先、又能免費看牌 → 主要<b>過牌</b>（${mix.check}%），等下一張公共牌再說。`;
+    }
+    html+=`<div class="eq-act"><b>🎲 那這手「該怎麼打」？</b>${mixBarHTML(mix)}<div class="eq-actwhy">${why}</div>`+
+      `<div class="eq-actrule">💡 口訣：<b>勝率追不上門票 → 蓋</b>；<b>追得上 → 跟</b>；<b>大幅領先 → 加注／全押</b>。贏越多、越該主動下大；平手只分一半、不算贏。</div></div>`;
   }
   el('eqBody').innerHTML=html;
   el('eqModal').style.display='flex';
