@@ -383,8 +383,23 @@
   #banner .rv .rvt{color:var(--muted);}
 
   /* ---------- 戰績面板 ---------- */
-  #statsModal{position:fixed; inset:0; background:rgba(4,8,16,.72); backdrop-filter:blur(4px);
+  #statsModal, #eqModal{position:fixed; inset:0; background:rgba(4,8,16,.72); backdrop-filter:blur(4px);
     display:none; align-items:center; justify-content:center; z-index:120; padding:18px;}
+  /* 點勝率彈窗：把「勝率怎麼算」攤開 */
+  #coachBox .cb-eq{cursor:pointer;}
+  #coachBox .cb-eq .cb-eq-q{font-size:11px; vertical-align:super; opacity:.7; margin-left:1px;}
+  #eqBody .eq-cards{display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:13px; color:var(--muted); margin-bottom:12px;}
+  #eqBody .eq-cards .card.sm{width:30px; height:42px;} #eqBody .eq-lbl{margin-left:4px;}
+  #eqBody .eq-none{color:var(--muted); font-style:normal;}
+  #eqBody .eq-big{font-size:26px; font-weight:800; color:var(--gold); text-align:center; margin:4px 0 10px;}
+  #eqBody .eq-explain{font-size:13px; color:var(--txt); line-height:1.6; margin-bottom:8px;}
+  #eqBody .eq-bar{display:flex; height:18px; border-radius:9px; overflow:hidden; margin:8px 0 6px; border:1px solid rgba(255,255,255,.1);}
+  #eqBody .eq-bar .w{background:#3aa76d;} #eqBody .eq-bar .t{background:#caa23f;} #eqBody .eq-bar .l{background:#b34a55;}
+  #eqBody .eq-counts{font-size:13px; text-align:center; margin-bottom:12px; line-height:1.7;}
+  #eqBody .eq-note, #eqBody .eq-odds, #eqBody .eq-draw{font-size:13px; line-height:1.65; border-radius:10px; padding:10px 12px; margin-top:8px;}
+  #eqBody .eq-note{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);}
+  #eqBody .eq-odds{background:rgba(0,164,198,.1); border:1px solid rgba(0,164,198,.3);}
+  #eqBody .eq-draw{background:rgba(124,224,163,.1); border:1px solid rgba(124,224,163,.3); color:#bfe8c9;}
   .stats-card{background:rgba(12,20,36,.97); border:1px solid rgba(255,255,255,.12); border-radius:18px;
     padding:22px; width:min(420px,94vw); box-shadow:0 30px 80px rgba(0,0,0,.6); max-height:92vh; overflow-y:auto;}
   .stats-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
@@ -635,7 +650,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v7 · 對手會讀你</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v8 · 點勝率看算法</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -688,6 +703,14 @@
     <div class="stats-head"><h2>📊 我的戰績</h2><button class="xclose" id="statsClose">✕</button></div>
     <div id="statsBody"></div>
     <button class="btn" id="statsCloseBtn" style="width:100%;margin-top:16px">關閉</button>
+  </div>
+</div>
+
+<div id="eqModal">
+  <div class="stats-card">
+    <div class="stats-head"><h2>🎲 勝率是怎麼算的</h2><button class="xclose" id="eqClose">✕</button></div>
+    <div id="eqBody"></div>
+    <button class="btn" id="eqCloseBtn" style="width:100%;margin-top:16px">懂了</button>
   </div>
 </div>
 
@@ -793,6 +816,55 @@ function estimateEquity(hole, community, numOpp, iters){
     if(better===0) win += (equal===0)?1:1/(equal+1);
   }
   return win/iters;
+}
+/* 點勝率時現算：回傳 贏/平/輸 次數拆解（教學用，只在點擊時跑一次） */
+function equityBreakdown(hole, community, numOpp, iters){
+  const known=[...hole,...community];
+  let eqSum=0, win=0, tie=0, lose=0;
+  for(let it=0; it<iters; it++){
+    const deck=shuffle(freshDeck().filter(c=>!known.some(k=>sameCard(k,c))));
+    let idx=0; const opps=[];
+    for(let o=0;o<numOpp;o++) opps.push([deck[idx++],deck[idx++]]);
+    const board=[...community]; while(board.length<5) board.push(deck[idx++]);
+    const my=evaluate7([...hole,...board]);
+    let better=0, equal=0;
+    for(const oh of opps){ const c=cmpScore(evaluate7([...oh,...board]),my); if(c>0){better++;break;} if(c===0) equal++; }
+    if(better>0) lose++;
+    else if(equal>0){ tie++; eqSum+=1/(equal+1); }
+    else { win++; eqSum+=1; }
+  }
+  return { win, tie, lose, iters, winPct:Math.round(win/iters*100), tiePct:Math.round(tie/iters*100),
+    losePct:Math.round(lose/iters*100), eqPct:Math.round(eqSum/iters*100) };
+}
+function openEqDetail(){
+  const p=players[0]; if(!p||!p.hole||!p.hole.length) return;
+  const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
+  const nOpp=Math.min(oppLive,4)||1, SIM=1500;
+  const bd=equityBreakdown(p.hole, community, nOpp, SIM);
+  const toCall=betToMatch-p.streetBet, pot=totalPot();
+  const oddPct=toCall>0?Math.round(toCall/(pot+toCall)*100):0;
+  const draw=countOuts(p.hole, community);
+  const holeHTML=p.hole.map(c=>cardHTML(c,true,true)).join('');
+  const boardHTML=community.length?community.map(c=>cardHTML(c,true,true)).join(''):'<span class="eq-none">翻牌前還沒發</span>';
+  const wPct=bd.win/SIM*100, tPct=bd.tie/SIM*100, lPct=bd.lose/SIM*100;
+  let html=`<div class="eq-cards"><span class="eq-lbl">你的牌</span>${holeHTML}<span class="eq-lbl">公共牌</span>${boardHTML}<span class="eq-lbl">對手 ${oppLive} 家</span></div>`+
+    `<div class="eq-big">勝率 ≈ ${bd.eqPct}%</div>`+
+    `<div class="eq-explain">電腦把這手「打到最後」模擬了 <b>${SIM}</b> 次——每次隨機幫對手發牌、把公共牌補滿，比誰的牌大：</div>`+
+    `<div class="eq-bar"><span class="w" style="flex:${Math.max(wPct,0.5)}"></span><span class="t" style="flex:${Math.max(tPct,0.001)}"></span><span class="l" style="flex:${Math.max(lPct,0.5)}"></span></div>`+
+    `<div class="eq-counts">🟢 贏 <b>${bd.win}</b> 次（${bd.winPct}%）　🟡 平手 <b>${bd.tie}</b>（${bd.tiePct}%）　🔴 輸 <b>${bd.lose}</b>（${bd.losePct}%）</div>`+
+    `<div class="eq-note">白話：照現在這副牌，長期打 100 次大概贏 <b>${bd.eqPct}</b> 次左右。這不是「這手一定贏」，是<b>長期平均</b>——所以偶爾輸很正常，要看的是長期、不是單手。</div>`;
+  if(toCall>0){
+    const ok=bd.eqPct>=oddPct+2;
+    html+=`<div class="eq-odds"><b>那這注划不划算？</b><br>現在要跟 <b>${toCall}</b>，換算下來你「勝率要 ≥ <b>${oddPct}%</b>」長期跟下去才不虧。<br>你的勝率 ${bd.eqPct}% → ${ok?'✅ 跟得過，這注划算':'❌ 不夠，長期會虧，這裡偏向放生'}。</div>`;
+  } else {
+    html+=`<div class="eq-odds">現在沒人下注、可以免費看牌：勝率高就主動下注收錢，勝率低就過牌、免費看下一張公共牌。</div>`;
+  }
+  if(draw.outs>0 && draw.draws.length && (community.length===3||community.length===4)){
+    const hit=Math.min(95, draw.outs*(community.length===3?4:2));
+    html+=`<div class="eq-draw">你還在聽 <b>${draw.draws.join('、')}</b>：牌堆裡有 ${draw.outs} 張能讓你升級，下一張公共牌約 <b>${hit}%</b> 會補到。</div>`;
+  }
+  el('eqBody').innerHTML=html;
+  el('eqModal').style.display='flex';
 }
 
 /* ---------- 遊戲狀態 ---------- */
@@ -1514,7 +1586,7 @@ function renderCoach(){
   const canRaise=(p.streetBet+p.chips)>betToMatch;
   const made=community.length?handName(evaluate7([...p.hole,...community])):'';
   const draw=countOuts(p.hole,community), eqPct=Math.round(eq*100);
-  let top=`<span class="cb-eq">${eqPct}%</span><span class="cb-made">${made?'目前：'+made:'翻牌前·只有底牌'}</span>`;
+  let top=`<span class="cb-eq" role="button" title="點我看這個勝率怎麼算出來的">${eqPct}%<span class="cb-eq-q">ⓘ</span></span><span class="cb-made">${made?'目前：'+made:'翻牌前·只有底牌'}</span>`;
   if(draw.outs>0&&draw.draws.length){
     top+=`<span class="cb-draw">還在聽 <b>${draw.draws.join('、')}</b>，牌堆裡有 <b>${draw.outs}</b> 張能讓你升級`;
     if(community.length===3||community.length===4){            // 2/4 法則:翻牌×4、轉牌×2(口訣近似)
@@ -1921,6 +1993,10 @@ el('statPill').onclick=openStatsModal;
 el('statsClose').onclick=()=>el('statsModal').style.display='none';
 el('statsCloseBtn').onclick=()=>el('statsModal').style.display='none';
 el('statsModal').onclick=e=>{ if(e.target===el('statsModal')) el('statsModal').style.display='none'; };
+el('eqClose').onclick=()=>el('eqModal').style.display='none';
+el('eqCloseBtn').onclick=()=>el('eqModal').style.display='none';
+el('eqModal').onclick=e=>{ if(e.target===el('eqModal')) el('eqModal').style.display='none'; };
+el('coachBox').addEventListener('click', e=>{ if(e.target.closest('.cb-eq')) openEqDetail(); });   // 事件委派：coachBox 內容每次重繪，綁在容器上
 el('rulesBtn').onclick=()=>alert(
   '德州撲克玩法\n\n' +
   '• 每人 2 張底牌（只有自己看得到）。\n' +
