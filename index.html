@@ -305,6 +305,24 @@
     @keyframes rhpulse{ 50%{ transform:translateX(-50%) scale(1.045); } }
   }
 
+  /* ====== 人多（8+）自動縮小座位，避免重疊（桌面/橫向/直向三級）====== */
+  #table.crowded .seat{ width:122px; }
+  #table.crowded .seat .who{ min-width:104px; }
+  @media (orientation:landscape) and (max-height:600px){
+    #table.crowded .seat{ width:90px; }
+    #table.crowded .seat .who{ min-width:78px; padding:3px 8px; }
+    #table.crowded .seat .name{ font-size:12px; }
+    #table.crowded .seat .chips{ font-size:11px; }
+    #table.crowded .seat:not(.me) .hole{ display:none; }   /* 人多時藏對手牌背（只是裝飾），騰出垂直空間避免重疊；你自己的牌保留 */
+  }
+  @media (max-width:640px){
+    #table.crowded .seat{ width:78px; }
+    #table.crowded .seat .who{ min-width:66px; padding:3px 6px; }
+    #table.crowded .seat .name{ font-size:11px; }
+    #table.crowded .seat .chips{ font-size:10px; }
+    #table.crowded .seat:not(.me) .hole{ display:none; }
+  }
+
   /* ---------- 開始設定 ---------- */
   #setup{
     position:fixed; inset:0; background:radial-gradient(800px 600px at 50% 20%,#16243f,#0a0f1c);
@@ -652,7 +670,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v10 · 攤牌秀公牌</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v11 · 滿桌10人</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -722,8 +740,8 @@
     <h1>♠ <b>德州撲克</b></h1>
     <p class="sub">坐上牌桌，跟電腦對手鬥智。會算牌、會跟、會加注、也會偷雞。</p>
     <div class="field">
-      <label>電腦對手人數：<span class="val" id="oppVal">5</span> 位</label>
-      <input type="range" id="oppSlider" min="1" max="7" value="5">
+      <label>電腦對手：<span class="val" id="oppVal">5</span> 位（連你共 <b id="oppTot">6</b> 人）</label>
+      <input type="range" id="oppSlider" min="1" max="9" value="5">
     </div>
     <div class="field">
       <label>起始籌碼：<span class="val" id="stackVal">1000</span></label>
@@ -870,7 +888,7 @@ function openEqDetail(){
 }
 
 /* ---------- 遊戲狀態 ---------- */
-const BOT_NAMES=['阿傑','小美','老王','Money哥','沉默羊','機器K','幸運仔','鯊魚姐'];
+const BOT_NAMES=['阿傑','小美','老王','Money哥','沉默羊','機器K','幸運仔','鯊魚姐','阿土','教授','小辣椒','黑哥','阿珍','老李'];
 // 可辨識人格原型（只影響 bot 行為，不碰教練最佳解尺）
 const PERSONAS = {
   rock:    {label:'石頭',   aggro:0.70, bluff:0.03, station:0.12, foldToAgg:0.70, trap:0.15, size:'std',  tempo:'slow',   tiltProne:0.20, chat:0.10},
@@ -881,7 +899,8 @@ const PERSONAS = {
   gambler: {label:'賭徒',   aggro:1.50, bluff:0.22, station:0.60, foldToAgg:0.20, trap:0.08, size:'wild', tempo:'fast',   tiltProne:0.80, chat:0.55},
   abc:     {label:'老實',   aggro:0.95, bluff:0.06, station:0.32, foldToAgg:0.40, trap:0.10, size:'std',  tempo:'normal', tiltProne:0.30, chat:0.22},
 };
-const BOT_PERSONA = {'鯊魚姐':'lag','沉默羊':'rock','機器K':'tag','Money哥':'station','幸運仔':'gambler','老王':'trapper','阿傑':'abc','小美':'tag'};
+const BOT_PERSONA = {'鯊魚姐':'lag','沉默羊':'rock','機器K':'tag','Money哥':'station','幸運仔':'gambler','老王':'trapper','阿傑':'abc','小美':'tag',
+  '阿土':'rock','教授':'tag','小辣椒':'lag','黑哥':'gambler','阿珍':'abc','老李':'trapper'};
 let players=[], community=[], deck=[];
 let dealerIndex=0, currentIndex=0, betToMatch=0, lastRaiseSize=0;
 let smallBlind=5, bigBlind=10, startStack=1000, difficulty='normal';
@@ -1647,7 +1666,7 @@ function seatPos(i,n){
   const landscapeShort = window.innerHeight < 600 && window.innerWidth > window.innerHeight; // 手機橫向：矮
   const narrow = window.innerWidth < 560;          // 窄螢幕把座位往桌內收，避免溢出/被頂列或教練卡切到
   let rx = narrow?38:44, ry = narrow?42:46;
-  if(landscapeShort){ rx=46; ry=40; }              // 橫向：上下收一點，避免底部座位被行動列吃掉
+  if(landscapeShort){ const many=n>=8; rx=many?49:46; ry=many?47:40; }   // 橫向：人多時把座位環撐開，側邊座位才不會上下擠在一起
   const theta=(90 + i*360/n)*Math.PI/180;
   let y = 50 + ry*Math.sin(theta);
   // 橫向時「你」（底部正中）整個往上提，確保自己的底牌落在行動列上方、看得到
@@ -1803,11 +1822,13 @@ function render(){
 
   // 座位
   const n=players.length;
+  el('table').classList.toggle('crowded', n>=8);   // 人多時自動縮小座位，避免重疊
   const seats=el('seats'); seats.innerHTML='';
   players.forEach((p,i)=>{
     const pos=seatPos(i,n);
     const seat=document.createElement('div');
     seat.className='seat'
+      +(p.isHuman?' me':'')
       +(p.folded&&!p.sittingOut?' folded':'')+(p.sittingOut?' out':'')+(p.isWinner?' winner':'')
       +((p.allIn&&!p.folded&&!p.isWinner)?' allin':'');
     // turn 發光環的唯一來源：真的在等這位玩家行動（排除 all-in / 跑牌期 currentIndex=-1）
@@ -1977,7 +1998,7 @@ function gameOver(winner){
    設定畫面 + 事件
    ======================================================================== */
 let chosenBB=10, chosenDiff='normal';
-el('oppSlider').oninput=e=>el('oppVal').textContent=e.target.value;
+el('oppSlider').oninput=e=>{ el('oppVal').textContent=e.target.value; const t=el('oppTot'); if(t) t.textContent=(+e.target.value)+1; };
 el('stackSlider').oninput=e=>el('stackVal').textContent=e.target.value;
 el('blindSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b)return;
   [...el('blindSeg').children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); chosenBB=+b.dataset.bb; };
