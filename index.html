@@ -670,7 +670,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v11 · 滿桌10人</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v12 · 計算校正</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -859,7 +859,7 @@ function equityBreakdown(hole, community, numOpp, iters){
 function openEqDetail(){
   const p=players[0]; if(!p||!p.hole||!p.hole.length) return;
   const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
-  const nOpp=Math.min(oppLive,4)||1, SIM=1500;
+  const nOpp=oppLive||1, SIM=1500;   // 用真實對手數（不再封頂 4）——勝率才不會在滿桌灌水
   const bd=equityBreakdown(p.hole, community, nOpp, SIM);
   const toCall=betToMatch-p.streetBet, pot=totalPot();
   const oddPct=toCall>0?Math.round(toCall/(pot+toCall)*100):0;
@@ -1163,9 +1163,10 @@ function promptTurn(){
   if(p.isHuman){ busy=false; setActionBar(); }
   else { busy=true; setActionBar(); setTimeout(()=>botDecide(p), 140); }   // 思考時間改由 botDecide 依難度/個性決定
 }
-function betSizeTo(p, frac){ // 依底池比例算「加注到」目標
+function betSizeTo(p, frac){ // 依底池比例算「加注到」目標；面對下注時基準含「先跟掉的那注」才符合「frac×底池」直覺（開池時 toCall=0，與原式相同）
   const pot=Math.max(totalPot(), bigBlind);
-  let target = betToMatch + Math.round(frac*pot / bigBlind)*bigBlind;
+  const toCall=Math.max(0, betToMatch - p.streetBet);
+  let target = betToMatch + Math.round(frac*(pot+toCall) / bigBlind)*bigBlind;
   const minTo = betToMatch===0 ? bigBlind : betToMatch+lastRaiseSize;
   target=Math.max(target, minTo);
   target=Math.min(target, p.streetBet+p.chips);
@@ -1178,7 +1179,7 @@ function baselineDecision(eq, potOdds, toCall, pot, canRaise, nOpp){
     if(canRaise && rel>1.35) return {action:'raise', sizeFrac:0.6};
     return {action:'check'};
   }
-  if(canRaise && (rel>1.9 || eq>0.8)) return {action:'raise', sizeFrac:0.7};
+  if(canRaise && eq>=potOdds+0.05 && (rel>1.9 || eq>0.8)) return {action:'raise', sizeFrac:0.7};   // 價值加注前提：贏面要追得上賠率（領先），否則別把錢推進去
   if(eq >= potOdds+0.02) return {action:'call'};
   return {action:'fold'};
 }
@@ -1191,8 +1192,9 @@ function gtoMix(eq, potOdds, toCall, pot, canRaise, stack, oppLive, outs, stage)
   const spr = stack / Math.max(pot, bigBlind);
   const facing = toCall > 0;
   const strongDraw = (outs||0) >= 8, midDraw = (outs||0) >= 4 && (outs||0) < 8;
-  const mw = Math.max(0, oppLive - 1), tight = 1 + mw*0.18;
-  const eqAdj = eq / tight;
+  const mw = Math.max(0, oppLive - 1);
+  const avgEq = 1/(oppLive+1);                        // 這桌的「平均牌力」勝率
+  const eqAdj = Math.min(1, eq/(avgEq*2));            // 相對牌力：0.5=平均、1.0=兩倍平均（heads-up 時 =eq，行為不變；多人桌與 baselineDecision 的 rel 同向）
   const bluffCap = facing ? 0 : Math.max(0, 0.12 - mw*0.05);
   let m = {fold:0, check:0, call:0, raise:0, allin:0};
   if(!facing){
@@ -1206,9 +1208,9 @@ function gtoMix(eq, potOdds, toCall, pot, canRaise, stack, oppLive, outs, stage)
     const edge = eq - potOdds;
     // 加注家族%（價值/半詐唬）— 強牌讓加注成為主線（怪物該梭就梭）
     let raise = 0;
-    if(eqAdj >= 0.78)          raise = 55;
-    else if(eqAdj >= 0.62)     raise = 32;
-    else if(strongDraw)        raise = 30;
+    if(eqAdj >= 0.78 && edge >= 0)  raise = 55;        // 價值加注要先領先賠率(edge≥0)
+    else if(eqAdj >= 0.62 && edge >= 0) raise = 32;
+    else if(strongDraw)        raise = 30;             // 強聽牌可半詐唬加注（不受 edge 限）
     else if(midDraw)           raise = 12;
     else if(toCall <= pot*0.4) raise = Math.round(bluffCap*100);   // facing 時 bluffCap=0
     raise = Math.min(raise, canRaise ? 60 : 0);
@@ -1252,6 +1254,9 @@ function gradeFromMix(kind, mix){
   if(freq>=20){ score=90+Math.round(Math.min(1,(freq-20)/50)*10); band='good'; }
   else if(freq>=8){ score=55+Math.round((freq-8)/12*27); band='ok'; }
   else { score=16+Math.round(freq/8*32); band='bad'; }
+  // 主線一致性：玩家動作不是「最佳主線」時，最高只給 ok（避免逆主線如「該跟卻蓋」也被誇成好球）
+  const isPrimary = (kind==='raise') ? (mix.primary==='raise') : (kind===mix.primary);
+  if(!isPrimary && band==='good'){ band='ok'; score=Math.min(score,80); }
   return {score, band, freq};
 }
 const ACTZH={raise:'加注',call:'跟注',check:'過牌',fold:'蓋牌',allin:'All-in'};
@@ -1273,7 +1278,7 @@ function botSize(p, baseFrac){
   else if(P.size==='wild') frac*=(0.55+Math.random()*1.2);
   frac*=(0.85+Math.random()*0.3);
   let target=betSizeTo(p, frac);
-  if(P.size==='wild' && Math.random()<0.16) target=p.streetBet+p.chips;   // 賭徒偶爾直接梭
+  if(P.size==='wild' && Math.random()<0.10 && (totalPot()>p.chips*0.35 || p.chips<bigBlind*20)) target=p.streetBet+p.chips;   // 賭徒偶爾直接梭，但要底池夠大或短碼才梭（不再無腦清空）
   return target;
 }
 function botThink(p, diff){
@@ -1309,7 +1314,7 @@ function updateMoods(){   // 輸大池上頭(tilt↑)、贏大池更穩(tilt↓)
 function botDecide(p){
   if(p.folded||p.allIn){ return afterAction(); }
   const oppLive = players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
-  const eqTrue = estimateEquity(p.hole, community, Math.min(oppLive,4), oppLive>3?120:170);
+  const eqTrue = estimateEquity(p.hole, community, oppLive, oppLive>6?80:oppLive>3?120:170);   // 真實對手數；大桌降迭代補償效能
   const P=p.pers, skill=P.skill, tilt=p.tilt||0;
   const eq = Math.max(0, Math.min(1, eqTrue + (1-skill)*0.26*(Math.random()*2-1)));   // 越弱越會看走眼
   const toCall = betToMatch - p.streetBet;
@@ -1390,7 +1395,7 @@ function recordHuman(p, kind){    // kind: fold / check / call / raise
   if(!stats) return;
   const oppLive = players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   let eq; if(lastHumanEq && lastHumanEq.stage===stage && lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
-    else { eq=estimateEquity(p.hole, community, Math.min(oppLive,4), 220); lastHumanEq={eq,oppLive,stage}; }
+    else { eq=estimateEquity(p.hole, community, oppLive, 220); lastHumanEq={eq,oppLive,stage}; }
   const toCall = betToMatch - p.streetBet;
   const pot = totalPot();
   const potOdds = toCall>0 ? toCall/(pot+toCall) : 0;
@@ -1601,7 +1606,7 @@ function renderCoach(){
   const p=players[0];
   const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   let eq; if(lastHumanEq&&lastHumanEq.stage===stage&&lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
-  else { eq=estimateEquity(p.hole,community,Math.min(oppLive,4),220); lastHumanEq={eq,oppLive,stage}; }
+  else { eq=estimateEquity(p.hole,community,oppLive,220); lastHumanEq={eq,oppLive,stage}; }
   const toCall=betToMatch-p.streetBet, pot=totalPot();
   const potOdds=toCall>0?toCall/(pot+toCall):0;
   const canRaise=(p.streetBet+p.chips)>betToMatch;
@@ -1905,10 +1910,11 @@ function setActionBar(){
     sl.value=minTo; el('betAmt').textContent=minTo;
     // 快速下注鈕
     const pot=totalPot();
+    const toCall=Math.max(0, betToMatch-players[0].streetBet);   // 面對下注時，底池比例要含「先跟掉的那注」
     const presets=[['½ 底池',0.5],['¾ 底池',0.75],['1× 底池',1]];
     qb.innerHTML='';
     presets.forEach(([label,frac])=>{
-      let t=betToMatch + Math.round(frac*pot/bigBlind)*bigBlind; t=Math.max(t,minTo); t=Math.min(t,allInTo);
+      let t=betToMatch + Math.round(frac*(pot+toCall)/bigBlind)*bigBlind; t=Math.max(t,minTo); t=Math.min(t,allInTo);
       const b=document.createElement('button'); b.className='btn ghost'; b.textContent=label;
       b.onclick=()=>{ sl.value=t; el('betAmt').textContent=t; }; qb.appendChild(b);
     });
