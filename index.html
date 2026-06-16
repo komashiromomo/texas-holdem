@@ -701,7 +701,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v22 · 範圍對範圍</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v23 · 音效</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -710,6 +710,7 @@
       <span class="sp">贏率 <b id="pillBB" class="pos">+0.0</b><i id="pillBBunit">bb/100</i></span>
     </div>
     <button class="btn ghost" id="coachBtn">🎓 教練</button>
+    <button class="btn ghost" id="sfxBtn" title="音效開關">🔊</button>
     <button class="btn ghost" id="statsBtn">戰績</button>
     <button class="btn ghost" id="rulesBtn">規則</button>
     <button class="btn ghost" id="newGameBtn">新遊戲</button>
@@ -812,6 +813,35 @@
 /* ---------- 牌與洗牌 ---------- */
 const SUITS = ['♠','♥','♦','♣'];
 const SUIT_CLS = ['cs-spade','cs-heart','cs-diamond','cs-club'];   // 四色牌：黑桃黑/紅心紅/方塊藍/梅花綠（索引對齊 SUITS）
+
+/* ===== 音效：Web Audio 即時合成（離線、零音檔）===== */
+let _ac=null, sfxOn=true;
+try{ sfxOn = localStorage.getItem('pkSfx')!=='0'; }catch(e){}
+function ac(){ if(!_ac){ try{ _ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ _ac=null; } }
+  if(_ac && _ac.state==='suspended') _ac.resume(); return _ac; }
+['pointerdown','touchstart','keydown'].forEach(ev=>window.addEventListener(ev, ()=>{ if(_ac&&_ac.state==='suspended') _ac.resume(); }, {passive:true}));
+function _tone(c,t,f,dur,type,vol,glide){ const o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(f,t); if(glide) o.frequency.exponentialRampToValueAtTime(glide,t+dur);
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+0.03); }
+function _noise(c,t,dur,vol,ff,q){ const n=Math.max(1,Math.floor(c.sampleRate*dur)), b=c.createBuffer(1,n,c.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n); const s=c.createBufferSource(); s.buffer=b;
+  const fl=c.createBiquadFilter(); fl.type='bandpass'; fl.frequency.value=ff||2500; fl.Q.value=q||1;
+  const g=c.createGain(); g.gain.value=vol; s.connect(fl); fl.connect(g); g.connect(c.destination); s.start(t); s.stop(t+dur+0.03); }
+function sfx(name){ if(!sfxOn) return; const c=ac(); if(!c) return; const t=c.currentTime;
+  try{ switch(name){
+    case 'deal':  for(let i=0;i<3;i++) _noise(c,t+i*0.05,0.04,0.12,3500,2); break;           // 發牌riffle
+    case 'flip':  _noise(c,t,0.05,0.20,2800,1.4); break;                                       // 翻公共牌
+    case 'check': _tone(c,t,150,0.10,'square',0.12); _tone(c,t,85,0.13,'sine',0.13); break;    // 敲桌過牌
+    case 'call':  _noise(c,t,0.05,0.12,5200,3); _tone(c,t,950,0.05,'triangle',0.06); break;    // 籌碼跟注
+    case 'bet':   _noise(c,t,0.05,0.13,5200,3); _noise(c,t+0.06,0.05,0.11,4600,3); _tone(c,t,1150,0.05,'triangle',0.06); break;
+    case 'raise': _noise(c,t,0.05,0.14,6000,3); _noise(c,t+0.05,0.05,0.13,5400,3); _noise(c,t+0.10,0.05,0.11,4800,3); _tone(c,t,1300,0.06,'triangle',0.07); break;
+    case 'fold':  _noise(c,t,0.15,0.11,1100,0.7); break;                                       // 蓋牌刷聲
+    case 'allin': _tone(c,t,180,0.40,'sawtooth',0.13,720); _tone(c,t,260,0.40,'sine',0.08,950); break;  // 全押上揚
+    case 'win':   [523,659,784,1047].forEach((f,i)=>_tone(c,t+i*0.085,f,0.20,'triangle',0.10)); break;  // 贏池和弦
+    case 'click': _tone(c,t,600,0.03,'square',0.05); break;
+  } }catch(e){}
+}
 const RANKS = {2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A'};
 function freshDeck(){ const d=[]; for(let s=0;s<4;s++) for(let r=2;r<=14;r++) d.push({rank:r,suit:s}); return d; }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -1144,7 +1174,7 @@ function startNewHand(){
   betToMatch=bigBlind; lastRaiseSize=bigBlind;
   log(`<b>第 ${handNo} 手</b>開始 · <span class="hl">${players[dealerIndex].name}</span> 當莊`);
 
-  currentIndex=firstAct; render(); dealAnimation(); promptTurn();
+  currentIndex=firstAct; render(); dealAnimation(); sfx('deal'); promptTurn();
 }
 
 /* ---------- 一輪下注是否結束 ---------- */
@@ -1184,7 +1214,7 @@ function endStreet(){
   if(currentIndex===-1){ return endStreet(); }
   promptTurn();
 }
-function dealBoard(n){ for(let i=0;i<n;i++) community.push(deck.pop()); }
+function dealBoard(n){ for(let i=0;i<n;i++) community.push(deck.pop()); sfx('flip'); }
 
 /* ---------- 行動：人類 / 共用 ---------- */
 const BET_STAGES=['preflop','flop','turn','river'];
@@ -1192,15 +1222,15 @@ function doFold(p){
   if(p.isHuman && BET_STAGES.includes(stage)){ recordHuman(p,'fold'); noteHumanAction('fold', betToMatch-p.streetBet); }
   p.folded=true; p.hasActed=true; p.lastAction='蓋牌';
   const _i=players.indexOf(p); fxMuck(_i); fxBubble(_i);
-  log(`${tag(p)} 蓋牌`); afterAction(); }
+  log(`${tag(p)} 蓋牌`); sfx('fold'); afterAction(); }
 function doCheckCall(p){
   const toCall = betToMatch - p.streetBet;
   if(p.isHuman && BET_STAGES.includes(stage)){ const k=toCall>0?'call':'check'; recordHuman(p, k); noteHumanAction(k, toCall); }
-  if(toCall<=0){ p.lastAction='過牌'; log(`${tag(p)} 過牌`); }
+  if(toCall<=0){ p.lastAction='過牌'; log(`${tag(p)} 過牌`); sfx('check'); }
   else { const pay=Math.min(toCall,p.chips); const _b=p.committed; commit(p,pay);
     _pendingBet={idx:players.indexOf(p),amt:p.committed-_b};
     p.lastAction = p.allIn?'All-in '+(p.streetBet):'跟注 '+pay; log(`${tag(p)} ${p.allIn?'All-in':'跟注 '+pay}`);
-    if(p.allIn) fxAllInFlash(); }
+    sfx(p.allIn?'allin':'call'); if(p.allIn) fxAllInFlash(); }
   p.hasActed=true; fxBubble(players.indexOf(p)); afterAction();
 }
 function doRaiseTo(p, target){
@@ -1216,7 +1246,7 @@ function doRaiseTo(p, target){
   }
   p.hasActed=true;
   p.lastAction = p.allIn ? 'All-in '+target : (prev>0 ? '加注→'+target : '下注 '+target);
-  if(p.allIn) fxAllInFlash();
+  sfx(p.allIn?'allin':(prev>0?'raise':'bet')); if(p.allIn) fxAllInFlash();
   log(`${tag(p)} ${p.lastAction}`);
   fxBubble(players.indexOf(p));
   afterAction();
@@ -1966,7 +1996,7 @@ function decorateShowdown(){
   });
   [...el('board').querySelectorAll('.card')].forEach(c=>{ if(boardKeys.has(c.dataset.k)) c.classList.add('made'); });
 }
-function coinBurstToSeat(p){ if(reduceMotion||!fxLayer()) return;
+function coinBurstToSeat(p){ sfx('win'); if(reduceMotion||!fxLayer()) return;
   const i=players.indexOf(p); if(i<0) return;
   const src=centerPx(), dst=seatPx(i);
   for(let k=0;k<14;k++){
@@ -2206,6 +2236,12 @@ el('coachBtn') && (el('coachBtn').onclick=()=>{
   syncCoachBtn(); setActionBar();   // 立即生效：關掉馬上收、打開馬上算
 });
 syncCoachBtn();
+function syncSfxBtn(){ const b=el('sfxBtn'); if(b){ b.textContent=sfxOn?'🔊':'🔇'; b.classList.toggle('on',sfxOn); } }
+el('sfxBtn') && (el('sfxBtn').onclick=()=>{
+  sfxOn=!sfxOn; try{ localStorage.setItem('pkSfx', sfxOn?'1':'0'); }catch(e){}
+  syncSfxBtn(); if(sfxOn) sfx('call');   // 開啟時放一聲示意
+});
+syncSfxBtn();
 el('statPill').onclick=openStatsModal;
 el('statsClose').onclick=()=>el('statsModal').style.display='none';
 el('statsCloseBtn').onclick=()=>el('statsModal').style.display='none';
