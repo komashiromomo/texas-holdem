@@ -122,6 +122,9 @@
   .seat.out{opacity:.28; filter:grayscale(1);}
   .seat .name{font-size:13px; font-weight:800; display:flex; align-items:center; gap:5px;}
   .seat .name .you{color:var(--gold);}
+  .seat .name .avatar{flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
+    width:20px; height:20px; border-radius:50%; background:rgba(255,255,255,.12); font-size:13px; line-height:1;}
+  #table.crowded .seat .name .avatar{ width:15px; height:15px; font-size:10px; }
   .seat .chips{font-size:12px; color:#bfe8c9; font-weight:700;}
   .seat .chips.low{color:#ffb4b4;}
   .seat .hole{display:flex; gap:4px; height:54px;}
@@ -692,7 +695,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v19 · 大注收緊</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v20 · 頭像+BB尺寸</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -945,6 +948,9 @@ function openEqDetail(){
 
 /* ---------- 遊戲狀態 ---------- */
 const BOT_NAMES=['阿傑','小美','老王','Money哥','沉默羊','機器K','幸運仔','鯊魚姐','阿土','教授','小辣椒','黑哥','阿珍','老李'];
+// 角色頭像（emoji，對得上名字/個性；離線可用、不依賴外部圖檔）
+const AVATARS={'你':'😎','阿傑':'🧢','小美':'👧','老王':'🦊','Money哥':'🤑','沉默羊':'🐑','機器K':'🤖','幸運仔':'🍀','鯊魚姐':'🦈','阿土':'🧓','教授':'🤓','小辣椒':'🌶️','黑哥':'🕶️','阿珍':'👩','老李':'🕵️'};
+function avatarOf(name){ return AVATARS[name] || '🙂'; }
 // 可辨識人格原型（只影響 bot 行為，不碰教練最佳解尺）
 const PERSONAS = {
   rock:    {label:'石頭',   vpip:0.16, aggro:0.70, bluff:0.03, station:0.12, foldToAgg:0.70, trap:0.15, size:'std',  tempo:'slow',   tiltProne:0.20, chat:0.10},
@@ -1951,7 +1957,7 @@ function render(){
     const actCls = actKind(p.lastAction);
     seat.innerHTML=`
       <div class="who">
-        <div class="name">${p.isHuman?'<span class="you">●</span>':''}${p.name}${p.personaLabel&&!p.isHuman?`<span class="plabel">${p.tilt>0.45?'😡':''}${p.personaLabel}</span>`:''}</div>
+        <div class="name"><span class="avatar">${avatarOf(p.name)}</span><span class="${p.isHuman?'you':''}">${p.name}</span>${p.personaLabel&&!p.isHuman?`<span class="plabel">${p.tilt>0.45?'😡':''}${p.personaLabel}</span>`:''}</div>
         <div class="chips ${low?'low':''}">🪙 ${p.sittingOut?'出局':p.chips}</div>
         <div class="hole">${holeHTML}</div>
         ${p.score&&revealAll&&!p.folded?`<div class="handname">${handName(p.score)}</div>`:''}
@@ -2012,13 +2018,21 @@ function setActionBar(){
     rb.textContent = betToMatch===0?'下注':'加注';
     sl.min=minTo; sl.max=allInTo; sl.step=Math.max(1,Math.round(bigBlind/2));
     sl.value=minTo; el('betAmt').textContent=minTo;
-    // 快速下注鈕
-    const pot=totalPot();
-    const toCall=Math.max(0, betToMatch-players[0].streetBet);   // 面對下注時，底池比例要含「先跟掉的那注」
-    const presets=[['½ 底池',0.5],['¾ 底池',0.75],['1× 底池',1]];
+    // 快速下注鈕：翻牌前用「幾個 BB」（翻前大家用大盲想尺寸）、翻牌後用「底池比例」
     qb.innerHTML='';
-    presets.forEach(([label,frac])=>{
-      let t=betToMatch + Math.round(frac*(pot+toCall)/bigBlind)*bigBlind; t=Math.max(t,minTo); t=Math.min(t,allInTo);
+    let presets;   // [label, 目標加注到金額]
+    if(stage==='preflop'){
+      const opening = betToMatch<=bigBlind;
+      const raw = opening ? [2*bigBlind, 3*bigBlind, 4*bigBlind]
+                          : [betToMatch*2.5, betToMatch*3, betToMatch*4];   // 面對加注（3bet）約 2.5~4 倍
+      presets = raw.map(t0=>{ const t=Math.round(t0/bigBlind)*bigBlind; return [ (t/bigBlind)+' BB', t ]; });
+    } else {
+      const pot=totalPot(), toCall=Math.max(0, betToMatch-players[0].streetBet);
+      presets = [['½ 底池',0.5],['¾ 底池',0.75],['1× 底池',1]].map(([lbl,frac])=>
+        [ lbl, betToMatch + Math.round(frac*(pot+toCall)/bigBlind)*bigBlind ]);
+    }
+    presets.forEach(([label,t0])=>{
+      let t=Math.max(t0,minTo); t=Math.min(t,allInTo);
       const b=document.createElement('button'); b.className='btn ghost'; b.textContent=label;
       b.onclick=()=>{ sl.value=t; el('betAmt').textContent=t; }; qb.appendChild(b);
     });
