@@ -692,7 +692,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v17 · 數字一致</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v18 · 翻前說法</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -896,7 +896,11 @@ function openEqDetail(){
     `<div class="eq-bar"><span class="w" style="flex:${Math.max(wPct,0.5)}"></span><span class="t" style="flex:${Math.max(tPct,0.001)}"></span><span class="l" style="flex:${Math.max(lPct,0.5)}"></span></div>`+
     `<div class="eq-counts">🟢 贏 <b>${bd.win}</b> 次（${bd.winPct}%）　🟡 平手 <b>${bd.tie}</b>（${bd.tiePct}%）　🔴 輸 <b>${bd.lose}</b>（${bd.losePct}%）</div>`+
     `<div class="eq-note">白話：照現在這副牌，長期打 100 次大概贏 <b>${bd.eqPct}</b> 次左右。這不是「這手一定贏」，是<b>長期平均</b>——所以偶爾輸很正常，要看的是長期、不是單手。</div>`;
-  if(toCall>0){
+  const preflop = stage==='preflop';
+  if(toCall>0 && preflop){
+    // 翻牌前：別用即時賠率（多人全下勝率本來就低），看相對牌力＋隱含賠率
+    html+=`<div class="eq-odds"><b>翻牌前別只看這個價</b><br>多人時「全下勝率」${bd.eqPct}% 看起來低，是因為要<b>同時贏過 ${oppLive} 家</b>——但翻牌後還有很多操作空間（隱含賠率）。<br>翻牌前看的是這手<b>相對這桌強不強</b>，不是這個即時門票（${oddPct}%）。</div>`;
+  } else if(toCall>0){
     const ok=bd.eqPct>=oddPct+2;
     html+=`<div class="eq-odds"><b>那這注划不划算？</b><br>現在要跟 <b>${toCall}</b>，換算下來你「勝率要 ≥ <b>${oddPct}%</b>」長期跟下去才不虧。<br>你的勝率 ${bd.eqPct}% → ${ok?'✅ 跟得過，這注划算':'❌ 不夠，長期會虧，這裡偏向放生'}。</div>`;
   } else {
@@ -914,7 +918,12 @@ function openEqDetail(){
     const mix = lastMix || gtoMix(bd.eq, toCall>0?toCall/(pot+toCall):0, toCall, pot, canRaise, p.chips, oppLive, draw.outs, stage);   // 用教練卡同一份 mix → 建議 100% 一致
     const rfam=mix.raise+mix.allin;
     let why;
-    if(toCall>0){
+    if(toCall>0 && preflop){
+      // 翻牌前：用「相對牌力」講，不用即時賠率（避免「18% 超過 39%」這種自相矛盾）
+      if(mix.primary==='fold')      why=`這手相對這桌偏弱 → 翻牌前主要<b>蓋牌</b>（${mix.fold}%），別用弱牌花錢進場。`;
+      else if(mix.primary==='call') why=`這手還行、但沒強到能加注主導 → 主要<b>跟注</b>（${mix.call}%）進場看翻牌。`;
+      else                          why=`這手相對這桌<b>數一數二強</b> → 翻牌前主要<b>${mix.shove?'全押':'加注'}</b>（${rfam}%），把弱牌逼走、搶主導（別被多人小池的即時賠率騙了）。`;
+    } else if(toCall>0){
       if(mix.primary==='fold')      why=`你的勝率 <b>${bd.eqPct}%</b> 追不上要付的 <b>${oddPct}%</b> 門票 → 主要該<b>蓋牌</b>（${mix.fold}%），硬跟長期虧。`;
       else if(mix.primary==='call') why=`勝率 <b>${bd.eqPct}%</b> 付得起 <b>${oddPct}%</b> 門票、但沒大幅領先 → 主要<b>跟注</b>看牌（${mix.call}%）。`;
       else                          why=`勝率 <b>${bd.eqPct}%</b> 明顯超過 <b>${oddPct}%</b> 門票、你在領先 → 主要<b>${mix.shove?'全押':'加注'}</b>收價值（${rfam}%）。`;
@@ -922,8 +931,10 @@ function openEqDetail(){
       if(mix.primary==='raise')     why=`你比這桌平均強不少 → 主要<b>主動下注</b>（${rfam}%）逼對手付錢才看下一張。`;
       else                          why=`沒大幅領先、又能免費看牌 → 主要<b>過牌</b>（${mix.check}%），等下一張公共牌再說。`;
     }
-    html+=`<div class="eq-act"><b>🎲 那這手「該怎麼打」？</b>${mixBarHTML(mix)}<div class="eq-actwhy">${why}</div>`+
-      `<div class="eq-actrule">💡 口訣：<b>勝率追不上門票 → 蓋</b>；<b>追得上 → 跟</b>；<b>大幅領先 → 加注／全押</b>。贏越多、越該主動下大；平手只分一半、不算贏。</div></div>`;
+    const rule = preflop
+      ? `💡 翻牌前口訣：看<b>牌的相對強弱</b>、不是這個即時價。強牌（大對子、AK/AQ）<b>主動加注</b>；中等牌<b>便宜才跟</b>；弱牌<b>直接丟</b>。多人時全下勝率本來就低，別被數字嚇到。`
+      : `💡 口訣：<b>勝率追不上門票 → 蓋</b>；<b>追得上 → 跟</b>；<b>大幅領先 → 加注／全押</b>。贏越多、越該主動下大；平手只分一半、不算贏。`;
+    html+=`<div class="eq-act"><b>🎲 那這手「該怎麼打」？</b>${mixBarHTML(mix)}<div class="eq-actwhy">${why}</div><div class="eq-actrule">${rule}</div></div>`;
   }
   el('eqBody').innerHTML=html;
   el('eqModal').style.display='flex';
@@ -1620,14 +1631,22 @@ function whyLine(kind,rec,eqPct,oddsPct,recSize,actName,tip,score){
 }
 function coachAdvice(dec,eqPct,toCall,pot,draw){
   const shove=dec.shove, act=dec.action;
+  const preflop = stage==='preflop';
   const tag = act==='raise' ? (shove?'全押':'加注') : {call:'跟注',check:'過牌',fold:'蓋牌'}[act];
   const cls = (act==='raise'&&shove) ? 'allin' : act;
   const rec=`<span class="cb-rec ${cls}">建議：${tag}</span>`; let why='';
   if(act==='raise') why = shove ? `這手夠強又適合直接梭（贏面約 ${eqPct}%）——一次把籌碼全推進去，給對手最大壓力。`
-      : (toCall>0?`你這手夠強（贏面約 ${eqPct}%），與其只是跟，不如反加注，趁對手還在多撈一點。`:`沒人下注又輪到你，這手不弱（約 ${eqPct}%）——主動下注，逼對手付錢才看得到下一張牌。`);
-  else if(act==='call') why=`池底現在有 ${pot}，你只要再丟 ${toCall} 就能繼續搶——等於花 ${toCall} 搶 ${pot}。你的勝率 ${eqPct}% 追得上這個價，跟下去長期划算。`+(draw.outs>0?`（你還在聽牌，補到就更大。）`:'');
+      : (toCall>0
+          ? (preflop ? `這手相對這桌很強——翻牌前主動加注，把弱牌逼走、搶主導，比只是跟更賺。`
+                     : `你這手夠強（贏面約 ${eqPct}%），與其只是跟，不如反加注，趁對手還在多撈一點。`)
+          : `沒人下注又輪到你，這手不弱（約 ${eqPct}%）——主動下注，逼對手付錢才看得到下一張牌。`);
+  else if(act==='call') why = (preflop && toCall>0)
+      ? `這手相對這桌還行——翻牌前先跟一手、進場看翻牌（翻牌前看的是牌力強弱，不是這個即時價）。`
+      : `池底現在有 ${pot}，你只要再丟 ${toCall} 就能繼續搶——等於花 ${toCall} 搶 ${pot}。你的勝率 ${eqPct}% 追得上這個價，跟下去長期划算。`+(draw.outs>0?`（你還在聽牌，補到就更大。）`:'');
   else if(act==='check') why=`不用花錢就能免費看下一張公共牌，先過牌、把這手看下去，沒必要現在就投錢。`;
-  else why= toCall>0?`要再丟 ${toCall} 才能搶池底 ${pot}，但你的勝率只有 ${eqPct}%，追不上這個價——硬跟長期是賠錢，這手收手最省。`:`這手太弱（約 ${eqPct}%），不值得再投錢。`;
+  else why = (preflop && toCall>0)
+      ? `這手相對這桌偏弱——翻牌前直接蓋掉，別用弱牌花錢進場。`
+      : (toCall>0?`要再丟 ${toCall} 才能搶池底 ${pot}，但你的勝率只有 ${eqPct}%，追不上這個價——硬跟長期是賠錢，這手收手最省。`:`這手太弱（約 ${eqPct}%），不值得再投錢。`);
   return `${rec}　<span class="cb-why">${why}</span>`;
 }
 /* 剝削式教學:讀當前單一對手的人格/漏洞 → 一句「該怎麼修理他」（純唯讀，不碰算錢/評分） */
