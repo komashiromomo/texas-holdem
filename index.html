@@ -701,7 +701,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v23 · 音效</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v24 · 音效解鎖</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -815,11 +815,16 @@ const SUITS = ['♠','♥','♦','♣'];
 const SUIT_CLS = ['cs-spade','cs-heart','cs-diamond','cs-club'];   // 四色牌：黑桃黑/紅心紅/方塊藍/梅花綠（索引對齊 SUITS）
 
 /* ===== 音效：Web Audio 即時合成（離線、零音檔）===== */
-let _ac=null, sfxOn=true;
+let _ac=null, _audioUnlocked=false, sfxOn=true;
 try{ sfxOn = localStorage.getItem('pkSfx')!=='0'; }catch(e){}
 function ac(){ if(!_ac){ try{ _ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ _ac=null; } }
   if(_ac && _ac.state==='suspended') _ac.resume(); return _ac; }
-['pointerdown','touchstart','keydown'].forEach(ev=>window.addEventListener(ev, ()=>{ if(_ac&&_ac.state==='suspended') _ac.resume(); }, {passive:true}));
+// iOS/手機自動播放限制：必須在「真實手勢」裡建立+resume+播一段靜音 buffer 才徹底解鎖
+function unlockAudio(){ const c=ac(); if(!c) return;
+  try{ if(c.state==='suspended') c.resume();
+    if(!_audioUnlocked){ const b=c.createBuffer(1,1,22050), s=c.createBufferSource(); s.buffer=b; s.connect(c.destination); s.start(0); _audioUnlocked=true; }
+  }catch(e){} }
+['pointerdown','touchend','mousedown','keydown','click'].forEach(ev=>window.addEventListener(ev, unlockAudio, {passive:true}));
 function _tone(c,t,f,dur,type,vol,glide){ const o=c.createOscillator(),g=c.createGain();
   o.type=type||'sine'; o.frequency.setValueAtTime(f,t); if(glide) o.frequency.exponentialRampToValueAtTime(glide,t+dur);
   g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
