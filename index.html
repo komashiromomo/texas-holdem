@@ -427,6 +427,8 @@
   #eqBody .eq-note{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);}
   #eqBody .eq-odds{background:rgba(0,164,198,.1); border:1px solid rgba(0,164,198,.3);}
   #eqBody .eq-draw{background:rgba(124,224,163,.1); border:1px solid rgba(124,224,163,.3); color:#bfe8c9;}
+  #eqBody .eq-range{font-size:13px; line-height:1.65; border-radius:10px; padding:10px 12px; margin-top:8px;
+    background:rgba(168,130,255,.1); border:1px solid rgba(168,130,255,.35); color:#dcd2ff;}
   #eqBody .eq-sub{font-size:11.5px; color:var(--muted);}
   #eqBody .eq-act{margin-top:10px; border-radius:10px; padding:10px 12px; background:rgba(232,196,106,.08); border:1px solid rgba(232,196,106,.3);}
   #eqBody .eq-act>b{font-size:13.5px;}
@@ -699,7 +701,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v21 · 四色牌</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v22 · 範圍對範圍</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -886,6 +888,54 @@ function equityBreakdown(hole, community, numOpp, iters){
   return { eq:eqSum/iters, win, tie, lose, iters, winPct:Math.round(win/iters*100), tiePct:Math.round(tie/iters*100),
     losePct:Math.round(lose/iters*100), eqPct:Math.round(eqSum/iters*100) };
 }
+
+/* ===== 範圍對範圍（教學用，只在勝率彈窗點開時算）=====
+   高手不猜對手「某一手牌」，而是估他「所有可能的牌(範圍)」，再看你贏不贏他整個範圍。 */
+function preflopStrength(a,b){   // 起手兩張牌的相對強度 0-1（純啟發式，用來切「前 X%」範圍）
+  const hi=Math.max(a.rank,b.rank), lo=Math.min(a.rank,b.rank);
+  const pair=a.rank===b.rank, suited=a.suit===b.suit;
+  if(pair) return Math.max(0,Math.min(1, 0.5 + (a.rank-2)/12*0.5));   // 對子：22~0.5, AA~1.0
+  let s=(hi-2)/12*0.52 + (lo-2)/12*0.22;                              // 高張價值
+  const gap=hi-lo;
+  if(suited) s+=0.08;
+  if(gap===1) s+=0.06; else if(gap===2) s+=0.03; else if(gap>=4) s-=0.05;
+  if(hi===14) s+=0.04;
+  return Math.max(0,Math.min(0.92, s));
+}
+let _strSorted=null;
+function strengthCutoff(pct){   // 「前 pct」的強度下界（pct=0.1 → 前10%）
+  if(!_strSorted){ const d=freshDeck(), arr=[];
+    for(let i=0;i<d.length;i++)for(let j=i+1;j<d.length;j++) arr.push(preflopStrength(d[i],d[j]));
+    arr.sort((x,y)=>y-x); _strSorted=arr; }
+  return _strSorted[Math.min(_strSorted.length-1, Math.floor(Math.max(0,Math.min(1,pct))*_strSorted.length))];
+}
+function villainRangePct(v){     // 估對手範圍寬度（% of 起手牌）：人格鬆緊 × 這手動作
+  let base=(v&&v.pers&&v.pers.vpip!=null)? v.pers.vpip : 0.4;
+  if(betToMatch > bigBlind*7)        base*=0.40;   // 面對 3bet+ 巨注 → 範圍很窄
+  else if(betToMatch > bigBlind*2.5) base*=0.65;   // 一般加注 → 收窄
+  base*=1+(v&&v.tilt||0)*0.5;                       // 上頭打更鬆 → 範圍變寬
+  return Math.max(0.04, Math.min(0.9, base));
+}
+function equityVsRange(hole, community, rangePct, iters){   // 你 vs 對手「整個範圍」的勝率（對手只發範圍內的牌）
+  const cut=strengthCutoff(rangePct), known=[...hole,...community];
+  let eqSum=0, n=0, guard=0;
+  while(n<iters && guard<iters*60){ guard++;
+    const deck=shuffle(freshDeck().filter(c=>!known.some(k=>sameCard(k,c))));
+    const oh=[deck[0],deck[1]];
+    if(preflopStrength(oh[0],oh[1]) < cut) continue;        // 不在範圍內 → 重抽
+    const board=[...community]; let idx=2; while(board.length<5) board.push(deck[idx++]);
+    const c=cmpScore(evaluate7([...oh,...board]), evaluate7([...hole,...board]));
+    eqSum += c<0?1 : c===0?0.5 : 0; n++;
+  }
+  return n? eqSum/n : null;
+}
+function rangeExamples(pct){
+  if(pct<=0.06) return '大概只有 AA-QQ、AK 這種頂級牌';
+  if(pct<=0.12) return '大對子 + AK/AQ 等強牌';
+  if(pct<=0.25) return '中大對子、AQ+、KQ 等不錯的牌';
+  if(pct<=0.45) return '對子、兩張高張、同花連張…偏寬';
+  return '很寬，幾乎什麼牌都可能';
+}
 function openEqDetail(){
   const p=players[0]; if(!p||!p.hole||!p.hole.length) return;
   const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
@@ -946,6 +996,20 @@ function openEqDetail(){
           ? `💡 面對這麼大的加注，回到看價：<b>勝率追不上門票就蓋</b>。對方加這麼大通常很強，沒到大牌（高對/AK）別硬跟。`
           : `💡 口訣：<b>勝率追不上門票 → 蓋</b>；<b>追得上 → 跟</b>；<b>大幅領先 → 加注／全押</b>。贏越多、越該主動下大；平手只分一半、不算贏。`);
     html+=`<div class="eq-act"><b>🎲 那這手「該怎麼打」？</b>${mixBarHTML(mix)}<div class="eq-actwhy">${why}</div><div class="eq-actrule">${rule}</div></div>`;
+  }
+  // 🎯 進階：範圍對範圍（只在「面對單一對手」時談，多人混戰範圍太雜不準）
+  { const v=readVillain();
+    if(v && v.pers){
+      const rp=villainRangePct(v), eqR=equityVsRange(p.hole, community, rp, 600);
+      if(eqR!=null){
+        const diff=Math.round(eqR*100)-bd.eqPct;
+        const cmp = Math.abs(diff)<3 ? '差不多' : (diff<0?`低了 ${-diff} 分`:`高了 ${diff} 分`);
+        html+=`<div class="eq-range"><b>🎯 進階：範圍對範圍</b><br>`+
+          `對手「${v.personaLabel}」這樣打，手牌範圍大約是 <b>前 ${Math.round(rp*100)}%</b> 的牌（${rangeExamples(rp)}）。<br>`+
+          `你對上「<b>他的整個範圍</b>」勝率 ≈ <b>${Math.round(eqR*100)}%</b>　（對隨機任意牌是 ${bd.eqPct}%，${cmp}）。<br>`+
+          `<span class="eq-sub">高手不是猜你對手「某一手」，是估他「可能的所有牌(範圍)」、再看你贏不贏他<b>整個範圍</b>。他打得越兇、範圍越窄，你需要的牌越強才跟得起。</span></div>`;
+      }
+    }
   }
   el('eqBody').innerHTML=html;
   el('eqModal').style.display='flex';
