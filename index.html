@@ -692,7 +692,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v16 · 翻前評牌</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v17 · 數字一致</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -875,23 +875,24 @@ function equityBreakdown(hole, community, numOpp, iters){
     else if(equal>0){ tie++; eqSum+=1/(equal+1); }
     else { win++; eqSum+=1; }
   }
-  return { win, tie, lose, iters, winPct:Math.round(win/iters*100), tiePct:Math.round(tie/iters*100),
+  return { eq:eqSum/iters, win, tie, lose, iters, winPct:Math.round(win/iters*100), tiePct:Math.round(tie/iters*100),
     losePct:Math.round(lose/iters*100), eqPct:Math.round(eqSum/iters*100) };
 }
 function openEqDetail(){
   const p=players[0]; if(!p||!p.hole||!p.hole.length) return;
   const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
-  const nOpp=oppLive||1, SIM=1500;   // 用真實對手數（不再封頂 4）——勝率才不會在滿桌灌水
-  const bd=equityBreakdown(p.hole, community, nOpp, SIM);
+  // 重用教練卡同一份勝率快取 → 彈窗與教練卡的數字、建議 100% 一致；沒快取才現算
+  const bd=(lastHumanEq && lastHumanEq.stage===stage && lastHumanEq.oppLive===oppLive && lastHumanEq.iters)
+    ? lastHumanEq : equityBreakdown(p.hole, community, oppLive||1, stage==='preflop'?420:260);
   const toCall=betToMatch-p.streetBet, pot=totalPot();
   const oddPct=toCall>0?Math.round(toCall/(pot+toCall)*100):0;
   const draw=countOuts(p.hole, community);
   const holeHTML=p.hole.map(c=>cardHTML(c,true,true)).join('');
   const boardHTML=community.length?community.map(c=>cardHTML(c,true,true)).join(''):'<span class="eq-none">翻牌前還沒發</span>';
-  const wPct=bd.win/SIM*100, tPct=bd.tie/SIM*100, lPct=bd.lose/SIM*100;
+  const wPct=bd.win/bd.iters*100, tPct=bd.tie/bd.iters*100, lPct=bd.lose/bd.iters*100;
   let html=`<div class="eq-cards"><span class="eq-lbl">你的牌</span>${holeHTML}<span class="eq-lbl">公共牌</span>${boardHTML}<span class="eq-lbl">對手 ${oppLive} 家</span></div>`+
     `<div class="eq-big">勝率 ≈ ${bd.eqPct}%</div>`+
-    `<div class="eq-explain">電腦把這手「打到最後」模擬了 <b>${SIM}</b> 次——每次隨機幫對手發牌、把公共牌補滿，比誰的牌大：</div>`+
+    `<div class="eq-explain">電腦把這手「打到最後」模擬了 <b>${bd.iters}</b> 次——每次隨機幫對手發牌、把公共牌補滿，比誰的牌大：</div>`+
     `<div class="eq-bar"><span class="w" style="flex:${Math.max(wPct,0.5)}"></span><span class="t" style="flex:${Math.max(tPct,0.001)}"></span><span class="l" style="flex:${Math.max(lPct,0.5)}"></span></div>`+
     `<div class="eq-counts">🟢 贏 <b>${bd.win}</b> 次（${bd.winPct}%）　🟡 平手 <b>${bd.tie}</b>（${bd.tiePct}%）　🔴 輸 <b>${bd.lose}</b>（${bd.losePct}%）</div>`+
     `<div class="eq-note">白話：照現在這副牌，長期打 100 次大概贏 <b>${bd.eqPct}</b> 次左右。這不是「這手一定贏」，是<b>長期平均</b>——所以偶爾輸很正常，要看的是長期、不是單手。</div>`;
@@ -909,8 +910,8 @@ function openEqDetail(){
   }
   // 🎲 從勝率 → 該怎麼打：把 贏/平/輸 連到 蓋牌/跟注/加注/全押 的關係攤給玩家看
   {
-    const mixEq=bd.eqPct/100, canRaise=(p.streetBet+p.chips)>betToMatch;
-    const mix=gtoMix(mixEq, toCall>0?toCall/(pot+toCall):0, toCall, pot, canRaise, p.chips, oppLive, draw.outs, stage);
+    const canRaise=(p.streetBet+p.chips)>betToMatch;
+    const mix = lastMix || gtoMix(bd.eq, toCall>0?toCall/(pot+toCall):0, toCall, pot, canRaise, p.chips, oppLive, draw.outs, stage);   // 用教練卡同一份 mix → 建議 100% 一致
     const rfam=mix.raise+mix.allin;
     let why;
     if(toCall>0){
@@ -1462,7 +1463,7 @@ function recordHuman(p, kind){    // kind: fold / check / call / raise
   if(!stats) return;
   const oppLive = players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   let eq; if(lastHumanEq && lastHumanEq.stage===stage && lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
-    else { eq=estimateEquity(p.hole, community, oppLive, 220); lastHumanEq={eq,oppLive,stage}; }
+    else { const bd=equityBreakdown(p.hole, community, oppLive, stage==='preflop'?420:260); lastHumanEq=Object.assign(bd,{oppLive,stage}); eq=bd.eq; }
   const toCall = betToMatch - p.streetBet;
   const pot = totalPot();
   const potOdds = toCall>0 ? toCall/(pot+toCall) : 0;
@@ -1673,7 +1674,7 @@ function renderCoach(){
   const p=players[0];
   const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   let eq; if(lastHumanEq&&lastHumanEq.stage===stage&&lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
-  else { eq=estimateEquity(p.hole,community,oppLive,220); lastHumanEq={eq,oppLive,stage}; }
+  else { const bd=equityBreakdown(p.hole,community,oppLive, stage==='preflop'?420:260); lastHumanEq=Object.assign(bd,{oppLive,stage}); eq=bd.eq; }
   const toCall=betToMatch-p.streetBet, pot=totalPot();
   const potOdds=toCall>0?toCall/(pot+toCall):0;
   const canRaise=(p.streetBet+p.chips)>betToMatch;
