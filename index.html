@@ -97,7 +97,11 @@
   .card.sm .r{font-size:14px;}
   .card .s{font-size:18px; align-self:flex-end; line-height:1;}
   .card.sm .s{font-size:14px;}
-  .card.red{color:var(--red);} .card.black{color:#1a2230;}
+  /* 四色牌 */
+  .card.cs-heart{color:var(--red);}     /* 紅心 紅 */
+  .card.cs-spade{color:#1a2230;}        /* 黑桃 黑 */
+  .card.cs-diamond{color:#2b6fe0;}      /* 方塊 藍 */
+  .card.cs-club{color:#1f9d57;}         /* 梅花 綠 */
   .card.back{
     background:
       repeating-linear-gradient(45deg,#284b86 0 7px,#1f3c6e 7px 14px);
@@ -695,7 +699,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v20 · 頭像+BB尺寸</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v21 · 四色牌</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -805,6 +809,7 @@
 
 /* ---------- 牌與洗牌 ---------- */
 const SUITS = ['♠','♥','♦','♣'];
+const SUIT_CLS = ['cs-spade','cs-heart','cs-diamond','cs-club'];   // 四色牌：黑桃黑/紅心紅/方塊藍/梅花綠（索引對齊 SUITS）
 const RANKS = {2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A'};
 function freshDeck(){ const d=[]; for(let s=0;s<4;s++) for(let r=2;r<=14;r++) d.push({rank:r,suit:s}); return d; }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -1791,8 +1796,7 @@ function seatPos(i,n){
 function cardHTML(card, faceUp, small){
   const cls = small?'card sm':'card';
   if(!faceUp) return `<div class="${cls} back"></div>`;
-  const red=(card.suit===1||card.suit===2);
-  return `<div class="${cls} ${red?'red':'black'}" data-k="${card.rank}|${card.suit}"><span class="r">${RANKS[card.rank]}</span><span class="s">${SUITS[card.suit]}</span></div>`;
+  return `<div class="${cls} ${SUIT_CLS[card.suit]}" data-k="${card.rank}|${card.suit}"><span class="r">${RANKS[card.rank]}</span><span class="s">${SUITS[card.suit]}</span></div>`;
 }
 
 /* ======================================================================
@@ -1871,8 +1875,7 @@ function tweenPot(target){
   })(t0);
 }
 function boardCardHTML(card, flip, dealIdx){
-  const red=(card.suit===1||card.suit===2);
-  const cls='card '+(red?'red':'black')+(flip?' flip':'');
+  const cls='card '+SUIT_CLS[card.suit]+(flip?' flip':'');
   const sty=(flip&&dealIdx!=null)?` style="--di:${dealIdx}"`:'';
   return `<div class="${cls}"${sty} data-k="${card.rank}|${card.suit}"><span class="r">${RANKS[card.rank]}</span><span class="s">${SUITS[card.suit]}</span></div>`;
 }
