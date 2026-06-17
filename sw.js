@@ -1,7 +1,7 @@
 /* 德州撲克 Service Worker
    策略：HTML 網路優先（有網路一定拿最新版，更新不會卡舊版）；
         圖示等靜態資源快取優先（快、省流量）；完全離線時用快取墊檔。 */
-const CACHE = 'poker-v24';
+const CACHE = 'poker-v25';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-180.png', './icon-32.png'

@@ -701,7 +701,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v24 · 音效解鎖</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v25 · 勝率更準</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -907,6 +907,19 @@ function estimateEquity(hole, community, numOpp, iters){
 /* 點勝率時現算：回傳 贏/平/輸 次數拆解（教學用，只在點擊時跑一次） */
 function equityBreakdown(hole, community, numOpp, iters){
   const known=[...hole,...community];
+  // 河牌(牌面已滿)+ 單一對手：直接窮舉對手 990 種兩張牌 → 精確、且比抽樣更快（沒有未發牌的變異）
+  if(community.length===5 && numOpp===1){
+    const rem=freshDeck().filter(c=>!known.some(k=>sameCard(k,c)));
+    const my=evaluate7([...hole,...community]);
+    let win=0,tie=0,lose=0;
+    for(let i=0;i<rem.length;i++)for(let j=i+1;j<rem.length;j++){
+      const c=cmpScore(evaluate7([rem[i],rem[j],...community]),my);
+      if(c<0) win++; else if(c===0) tie++; else lose++;
+    }
+    const n=win+tie+lose, eqSum=win+tie*0.5;
+    return { eq:eqSum/n, win, tie, lose, iters:n, winPct:Math.round(win/n*100), tiePct:Math.round(tie/n*100),
+      losePct:Math.round(lose/n*100), eqPct:Math.round(eqSum/n*100) };
+  }
   let eqSum=0, win=0, tie=0, lose=0;
   for(let it=0; it<iters; it++){
     const deck=shuffle(freshDeck().filter(c=>!known.some(k=>sameCard(k,c))));
@@ -923,6 +936,10 @@ function equityBreakdown(hole, community, numOpp, iters){
   return { eq:eqSum/iters, win, tie, lose, iters, winPct:Math.round(win/iters*100), tiePct:Math.round(tie/iters*100),
     losePct:Math.round(lose/iters*100), eqPct:Math.round(eqSum/iters*100) };
 }
+
+/* 教練勝率的模擬次數：越後街剩越少未知、越要算準（每街只算一次有快取，效能無虞）。
+   注意：bot 決策用的 estimateEquity 仍維持低次數（每次決策都算，求速度；bot 有誤差也合理）。*/
+function eqIters(st){ return {preflop:600, flop:1200, turn:1800, river:2400}[st] || 1000; }
 
 /* ===== 範圍對範圍（教學用，只在勝率彈窗點開時算）=====
    高手不猜對手「某一手牌」，而是估他「所有可能的牌(範圍)」，再看你贏不贏他整個範圍。 */
@@ -976,7 +993,7 @@ function openEqDetail(){
   const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   // 重用教練卡同一份勝率快取 → 彈窗與教練卡的數字、建議 100% 一致；沒快取才現算
   const bd=(lastHumanEq && lastHumanEq.stage===stage && lastHumanEq.oppLive===oppLive && lastHumanEq.iters)
-    ? lastHumanEq : equityBreakdown(p.hole, community, oppLive||1, stage==='preflop'?420:260);
+    ? lastHumanEq : equityBreakdown(p.hole, community, oppLive||1, eqIters(stage));
   const toCall=betToMatch-p.streetBet, pot=totalPot();
   const oddPct=toCall>0?Math.round(toCall/(pot+toCall)*100):0;
   const draw=countOuts(p.hole, community);
@@ -1600,7 +1617,7 @@ function recordHuman(p, kind){    // kind: fold / check / call / raise
   if(!stats) return;
   const oppLive = players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   let eq; if(lastHumanEq && lastHumanEq.stage===stage && lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
-    else { const bd=equityBreakdown(p.hole, community, oppLive, stage==='preflop'?420:260); lastHumanEq=Object.assign(bd,{oppLive,stage}); eq=bd.eq; }
+    else { const bd=equityBreakdown(p.hole, community, oppLive, eqIters(stage)); lastHumanEq=Object.assign(bd,{oppLive,stage}); eq=bd.eq; }
   const toCall = betToMatch - p.streetBet;
   const pot = totalPot();
   const potOdds = toCall>0 ? toCall/(pot+toCall) : 0;
@@ -1819,7 +1836,7 @@ function renderCoach(){
   const p=players[0];
   const oppLive=players.filter(x=>x!==p&&!x.folded&&!x.sittingOut).length;
   let eq; if(lastHumanEq&&lastHumanEq.stage===stage&&lastHumanEq.oppLive===oppLive) eq=lastHumanEq.eq;
-  else { const bd=equityBreakdown(p.hole,community,oppLive, stage==='preflop'?420:260); lastHumanEq=Object.assign(bd,{oppLive,stage}); eq=bd.eq; }
+  else { const bd=equityBreakdown(p.hole,community,oppLive, eqIters(stage)); lastHumanEq=Object.assign(bd,{oppLive,stage}); eq=bd.eq; }
   const toCall=betToMatch-p.streetBet, pot=totalPot();
   const potOdds=toCall>0?toCall/(pot+toCall):0;
   const canRaise=(p.streetBet+p.chips)>betToMatch;
