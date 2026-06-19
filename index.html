@@ -701,7 +701,7 @@
 <div id="app">
   <div id="rotateHint" onclick="this.style.display='none'">🔄 把手機<b>轉成橫向</b>，畫面更大更好玩</div>
   <header>
-    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v25 · 勝率更準</span></div>
+    <div class="logo">♠ <b>德州撲克</b><span class="logo-suffix"> 對戰桌</span><span class="ver" title="版本標記：確認你載到的是最新版">v26 · 讀牌覆寫</span></div>
     <div class="stat">手牌 <b id="handNo">—</b></div>
     <div class="stat">盲注 <b id="blindInfo">—</b></div>
     <div class="spacer"></div>
@@ -1854,13 +1854,29 @@ function renderCoach(){
   let odds=''; if(toCall>0){ const oddPct=Math.round(potOdds*100), ok=eq>=potOdds+0.02;
     odds=`<div class="cb-odds"><span class="od"><span class="k">你的勝率</span><span class="v">${eqPct}%</span></span><span class="od ${ok?'ok':'no'}"><span class="k">划算門檻</span><span class="v">${oddPct}%</span></span></div>`; }
   const mix = gtoMix(eq, potOdds, toCall, pot, canRaise, players[0].chips, oppLive, draw.outs, stage);
+  const villain = readVillain();
+  // 🎯 剝削覆寫：面對「緊型對手 all-in／超池大注」+ 你只是邊緣牌力 → GTO 的「對隨機牌可跟」要讓位給讀牌。
+  //   理由：all-in 沒有後續隱含賠率，對手把全部籌碼推進來時範圍通常強得多；邊緣兩對/單對在成對或高張牌面常被壓著打，
+  //   對隨機牌算的勝率會嚴重高估你對「他真正範圍」的勝率。只動教練的顯示＋打法條（不碰下注引擎/金流）。
+  //   條件很窄＝零回歸：須有單一下注者、GTO 主線本來就是「跟」、對手緊(vpip<0.4)、價貴(edge<12%)、牌力非強(eqAdj<0.8)、且非強聽牌。
+  let allinOv = null;
+  if(villain && villain.pers && toCall>0 && mix.primary==='call'){
+    const avgEq=1/(oppLive+1), eqAdj=Math.min(1, eq/(avgEq*2)), edge=eq-potOdds;
+    if((villain.chips===0 || toCall>=pot) && villain.pers.vpip<0.40 && edge<0.12 && eqAdj<0.80 && draw.outs<8){
+      allinOv = { villAllin:villain.chips===0, persona:villain.personaLabel };
+      Object.assign(mix, {fold:65, check:0, call:35, raise:0, allin:0, primary:'fold', shove:false});
+    }
+  }
   lastMix = mix;
   box.style.display='block';
-  const exTip = exploitTip(readVillain(), mix, toCall, stage);   // 剝削提示(對手是X→你該Y),GTO 之上的「天花板」
+  const adviceHTML = allinOv
+    ? `<span class="cb-rec fold">建議：蓋牌</span>　<span class="cb-why">你看到的 ${eqPct}% 是「對隨機兩張牌」算的。但對手「${allinOv.persona}」${allinOv.villAllin?'直接 all-in、把全部籌碼推進來':'下了一個超池大注'}——這種緊又兇的玩家這樣打，手牌範圍通常強得多。你這手在成對的牌面上其實偏邊緣（很多牌都壓過你），all-in 之後也沒有翻身的隱含賠率；對上他「真正的範圍」追不上要付的價，這把蓋牌最省。</span>`
+    : coachAdvice({action:mix.primary,shove:mix.shove},eqPct,toCall,pot,draw);
+  const exTip = exploitTip(villain, mix, toCall, stage);         // 剝削提示(對手是X→你該Y),GTO 之上的「天花板」
   const selfTip = selfLeakTip();                                 // 反向鏡子(你被讀到的習慣)
   box.innerHTML=`<div class="cb-honest">⚖️ GTO 風格近似，非專業解牌器</div>`+
     `<div class="cb-top">${top}</div>${odds}`+
-    `<div class="cb-line">${coachAdvice({action:mix.primary,shove:mix.shove},eqPct,toCall,pot,draw)}</div>`+
+    `<div class="cb-line">${adviceHTML}</div>`+
     mixBarHTML(mix)+
     (exTip?`<div class="cb-exploit">🎯 ${exTip}</div>`:'')+
     (selfTip?`<div class="cb-selfleak">🪞 ${selfTip}</div>`:'');
